@@ -133,7 +133,7 @@
         </div>
         <div class="flex flex-col">
           <span class="text-xs text-primary font-extrabold tracking-wide uppercase">GiroFinance</span>
-          <span id="header-greeting" class="text-xs text-on-surface-variant font-medium">Olá, Carlos Eduardo</span>
+          <span id="header-greeting" class="text-xs text-on-surface-variant font-medium">Meu Painel</span>
         </div>
       </div>
       
@@ -152,7 +152,7 @@
 
         <!-- Avatar do Usuário (clique para abrir CRUD de perfil) -->
         <button onclick="openProfileModal()" aria-label="Abrir Perfil" class="relative group">
-          <img id="header-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80" alt="Foto de Perfil" class="w-9 h-9 rounded-full object-cover border-2 border-primary/40 shadow-sm transition-transform active:scale-95"/>
+          <img id="header-avatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23006948'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E" alt="Foto de Perfil" class="w-9 h-9 rounded-full object-cover bg-surface-container border-2 border-primary/30 shadow-sm transition-transform active:scale-95 p-1"/>
           <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-surface rounded-full"></span>
         </button>
       </div>
@@ -171,7 +171,7 @@
       <section class="flex flex-col gap-space-xs">
         <div class="flex items-center justify-between">
           <div class="flex flex-col">
-            <span id="greeting-sub" class="text-lg font-bold text-on-surface">Olá, Carlos Eduardo!</span>
+            <span id="greeting-sub" class="text-lg font-bold text-on-surface">Olá! Bem-vindo</span>
             <span class="text-xs text-on-surface-variant">Confira sua performance e rotas</span>
           </div>
           
@@ -227,15 +227,15 @@
       <!-- Profile Info & Car Card (Toque para abrir CRUD de perfil) -->
       <section id="profile-card" class="flex items-center justify-between bg-surface-container-lowest px-space-md py-space-sm rounded-2xl shadow-sm border border-surface-container/50 cursor-pointer active:scale-[0.99] transition-all">
         <div class="flex items-center gap-space-sm min-w-0">
-          <div class="relative w-11 h-11 rounded-full overflow-hidden shrink-0 border border-primary/20">
-            <img id="profile-card-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80" alt="Avatar" class="w-full h-full object-cover"/>
+          <div class="relative w-11 h-11 rounded-full overflow-hidden shrink-0 border border-primary/20 bg-surface-container flex items-center justify-center">
+            <img id="profile-card-avatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23006948'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E" alt="Avatar" class="w-full h-full object-cover p-1.5"/>
           </div>
           <div class="flex flex-col min-w-0">
             <div class="flex items-center gap-1.5">
-              <span id="profile-name" class="text-sm font-bold text-on-surface truncate">Carlos Eduardo</span>
-              <span class="material-symbols-outlined text-[14px] text-primary">verified</span>
+              <span id="profile-name" class="text-sm font-bold text-on-surface truncate">Configurar Meu Perfil</span>
+              <span class="material-symbols-outlined text-[14px] text-primary">edit</span>
             </div>
-            <span id="profile-sub" class="text-xs text-on-surface-variant truncate">Chevrolet Onix Plus 1.0</span>
+            <span id="profile-sub" class="text-xs text-on-surface-variant truncate">Toque para adicionar seu carro</span>
           </div>
         </div>
         <div class="flex items-center gap-1 bg-surface-container px-2.5 py-1 rounded-full text-on-surface-variant hover:text-primary transition-colors">
@@ -797,6 +797,37 @@
       </a>
     </div>
   </nav>
+
+  <!-- ========================================== -->
+  <!-- MODAL AMIGÁVEL: CONFIRMAÇÃO DE E-MAIL      -->
+  <!-- ========================================== -->
+  <div id="email-confirm-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div id="email-confirm-backdrop" class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"></div>
+    <div class="relative w-full max-w-sm bg-surface rounded-3xl p-space-lg shadow-2xl z-10 flex flex-col items-center text-center space-y-3 transform transition-all border border-surface-container-high">
+      <div class="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center shadow-inner">
+        <span class="material-symbols-outlined text-[32px] animate-bounce">mark_email_unread</span>
+      </div>
+      <h3 class="text-lg font-bold text-on-surface">Quase lá! Confirme seu e-mail 📬</h3>
+      <p class="text-xs text-on-surface-variant leading-relaxed">
+        Enviamos um link de confirmação para:<br/>
+        <strong id="confirm-modal-email-val" class="text-on-surface font-bold text-sm block mt-1">seuemail@exemplo.com</strong>
+      </p>
+      <div class="bg-surface-container-low rounded-xl p-3 text-left w-full space-y-1">
+        <div class="flex items-center gap-1.5 text-xs text-primary font-bold">
+          <span class="material-symbols-outlined text-[16px]">touch_app</span>
+          <span>Como entrar na sua conta:</span>
+        </div>
+        <p class="text-[11px] text-on-surface-variant leading-snug">
+          1. Abra seu e-mail e clique no link de ativação.<br/>
+          2. O app fará seu <strong>login automático</strong> no mesmo instante!<br/>
+          <em class="text-[10px] text-outline mt-1 block">Dica: Se não encontrar, dê uma olhadinha na caixa de Spam.</em>
+        </p>
+      </div>
+      <button id="btn-close-email-confirm" type="button" class="w-full h-11 bg-primary text-on-primary rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all">
+        Entendi, vou verificar meu e-mail
+      </button>
+    </div>
+  </div>
 
   <!-- Interactive Feedback Toast -->
   <div id="app-toast" class="fixed bottom-20 left-4 right-4 max-w-md mx-auto z-50 bg-inverse-surface text-inverse-on-surface px-4 py-3 rounded-2xl shadow-xl flex items-center justify-between opacity-0 pointer-events-none transition-all duration-300 transform translate-y-2">

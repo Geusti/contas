@@ -1,6 +1,7 @@
 /**
  * GiroFinance - Calendário & Painel Financeiro Mobile
- * Gerenciamento de Estado, Autenticação Supabase Auth, CRUD de Perfil e Lançamentos
+ * Gerenciamento de Estado, Autenticação Supabase Auth, Auto-Login por E-mail,
+ * CRUD de Perfil e Lançamentos em Tempo Real.
  */
 
 // Configuração do Supabase
@@ -10,20 +11,23 @@ const SUPABASE_KEY = 'sb_publishable_8San8xCyPGxEpk9ZcvX3aA_srBiHDqS';
 let supabaseClient = null;
 let isSupabaseOnline = false;
 
-// Estado Global da Aplicação
+// Avatar padrão SVG limpo em Data URI
+const DEFAULT_AVATAR_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23006948'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+
+// Estado Global da Aplicação (TOTALMENTE LIMPO, SEM DADOS FAKE)
 const state = {
-  currentUser: null, // Objeto do Supabase Auth (null = modo convidado/offline)
-  currentDate: new Date(), // Mês/ano visualizado no calendário
+  currentUser: null, // Usuário autenticado
+  currentDate: new Date(), // Mês/ano exibido no calendário
   selectedDateStr: formatDateIso(new Date()), // YYYY-MM-DD
   activeTab: 'calendario', // 'calendario' | 'relatorios'
   periodFilter: 'mensal', // 'dia' | 'semanal' | 'quinzenal' | 'mensal'
-  lancamentos: {}, // Mapa com chave 'YYYY-MM-DD' => objeto do lançamento
+  lancamentos: {}, // Inicia VAZIO: dados serão gerados conforme o usuário adicionar
   perfil: {
-    nome: 'Carlos Eduardo',
-    data_nascimento: '1995-04-12',
-    carro: 'Chevrolet Onix Plus 1.0',
-    meta_mensal: 5000.00,
-    foto_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80'
+    nome: '',
+    data_nascimento: '',
+    carro: '',
+    meta_mensal: 0,
+    foto_url: ''
   }
 };
 
@@ -71,10 +75,36 @@ function formatPtBr(num) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Tradutor de mensagens de erro do Supabase para português amigável
+function translateAuthError(message) {
+  if (!message) return 'Ocorreu um erro ao processar sua solicitação. Tente novamente.';
+  const lower = message.toLowerCase();
+  if (lower.includes('invalid login credentials') || lower.includes('invalid_credentials')) {
+    return 'E-mail ou senha incorretos. Por favor, confira seus dados e tente novamente.';
+  }
+  if (lower.includes('email not confirmed')) {
+    return 'Seu e-mail ainda não foi confirmado. Enviamos um link de confirmação para sua caixa de entrada.';
+  }
+  if (lower.includes('user already registered') || lower.includes('already registered')) {
+    return 'Este e-mail já possui cadastro. Por favor, clique em "Fazer Login" para acessar sua conta.';
+  }
+  if (lower.includes('password should be at least')) {
+    return 'Sua senha deve ter no mínimo 6 caracteres para garantir a segurança da sua conta.';
+  }
+  if (lower.includes('rate limit')) {
+    return 'Muitas tentativas em pouco tempo. Por favor, aguarde alguns instantes.';
+  }
+  if (lower.includes('network') || lower.includes('failed to fetch')) {
+    return 'Sem conexão com o servidor. Seus dados continuam salvos com segurança no seu aparelho.';
+  }
+  return message;
+}
+
 // ==========================================
 // INICIALIZAÇÃO DA APLICAÇÃO
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
+  cleanLegacyMockData(); // Remove resquícios de dados falsos de versões anteriores
   initSupabase();
   loadLocalData();
   setupEventListeners();
@@ -85,19 +115,59 @@ document.addEventListener('DOMContentLoaded', async () => {
   await checkSessionAndSync();
 });
 
-// Inicializar Supabase
+// Limpeza de dados fake antigos
+function cleanLegacyMockData() {
+  try {
+    const isCleaned = localStorage.getItem('giro_clean_v2');
+    if (!isCleaned) {
+      const savedPerfil = localStorage.getItem('giro_perfil');
+      if (savedPerfil && savedPerfil.includes('Carlos Eduardo')) {
+        localStorage.removeItem('giro_perfil');
+      }
+      const savedLanc = localStorage.getItem('giro_lancamentos');
+      if (savedLanc && (savedLanc.includes('Corridas aeroporto') || savedLanc.includes('Sexta pico'))) {
+        localStorage.removeItem('giro_lancamentos');
+      }
+      localStorage.setItem('giro_clean_v2', 'true');
+    }
+  } catch (e) {
+    console.warn('Erro ao limpar dados legado:', e);
+  }
+}
+
+// Inicializar cliente Supabase com suporte a Auto-Login por link de e-mail
 function initSupabase() {
   if (window.supabase) {
     try {
-      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true // Captura automaticamente tokens de confirmação de e-mail da URL
+        }
+      });
       console.log('Cliente Supabase inicializado com sucesso.');
 
-      // Ouvir mudanças de autenticação (Login / Logout / Token Refresh)
+      // Ouvir mudanças de autenticação (Confirmação de e-mail, Login, Logout)
       supabaseClient.auth.onAuthStateChange(async (event, session) => {
-        console.log('Auth state change:', event, session?.user?.email);
+        console.log('Evento de Autenticação Supabase:', event, session?.user?.email);
+
         if (session && session.user) {
           state.currentUser = session.user;
+          localStorage.setItem('giro_active_session', JSON.stringify({ id: session.user.id, email: session.user.email }));
           updateAuthUI(true);
+          updateCloudStatusBadge(true, 'Nuvem Conectada');
+
+          // Limpa tokens da barra de endereço caso tenha vindo do link do e-mail
+          if (window.location.hash || window.location.search.includes('code=')) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+            showToast('🎉 E-mail confirmado com sucesso! Bem-vindo(a) ao GiroFinance!');
+          }
+
+          // Fecha eventuais modais de autenticação que estejam abertos
+          closeAuthModal();
+          closeEmailConfirmModal();
+
           await loadUserDataFromSupabase();
         } else {
           state.currentUser = null;
@@ -110,9 +180,9 @@ function initSupabase() {
   }
 }
 
-// Verificar sessão atual
+// Verificar sessão atual (Supabase + Local)
 async function checkSessionAndSync() {
-  // 1. Tentar recuperar sessão local salva
+  // 1. Tentar recuperar sessão local ativa
   try {
     const localSession = localStorage.getItem('giro_active_session');
     if (localSession) {
@@ -133,42 +203,25 @@ async function checkSessionAndSync() {
       state.currentUser = session.user;
       localStorage.setItem('giro_active_session', JSON.stringify({ id: session.user.id, email: session.user.email }));
       updateAuthUI(true);
+      updateCloudStatusBadge(true, 'Nuvem Conectada');
       await loadUserDataFromSupabase();
     } else if (!state.currentUser) {
       updateAuthUI(false);
-      await syncPublicLancamentos();
     }
   } catch (err) {
-    console.warn('Erro ao verificar sessão Supabase:', err);
+    console.warn('Erro ao checar sessão Supabase:', err);
     if (!state.currentUser) updateCloudStatusBadge(false, 'Modo Local');
   }
 }
 
-// Carregar dados locais do LocalStorage
+// Carregar dados locais (estritamente dados salvos pelo usuário, SEM mocks)
 function loadLocalData() {
   try {
     const savedLancamentos = localStorage.getItem('giro_lancamentos');
     if (savedLancamentos) {
       state.lancamentos = JSON.parse(savedLancamentos);
     } else {
-      // Dados iniciais de demonstração
-      const year = state.currentDate.getFullYear();
-      const month = String(state.currentDate.getMonth() + 1).padStart(2, '0');
-      state.lancamentos = {
-        [`${year}-${month}-01`]: { ganho_bruto: 310, combustivel: 80, outros_gastos: 20, lucro_liquido: 210, observacoes: 'Turno manhã e tarde' },
-        [`${year}-${month}-03`]: { ganho_bruto: 395, combustivel: 75, outros_gastos: 25, lucro_liquido: 295, observacoes: 'Corridas aeroporto' },
-        [`${year}-${month}-04`]: { ganho_bruto: 410, combustivel: 70, outros_gastos: 30, lucro_liquido: 310, observacoes: 'Dia movimentado' },
-        [`${year}-${month}-05`]: { ganho_bruto: 340, combustivel: 80, outros_gastos: 20, lucro_liquido: 240, observacoes: 'Chuva no centro' },
-        [`${year}-${month}-06`]: { ganho_bruto: 380, combustivel: 75, outros_gastos: 25, lucro_liquido: 280, observacoes: 'Turno noturno' },
-        [`${year}-${month}-07`]: { ganho_bruto: 440, combustivel: 85, outros_gastos: 25, lucro_liquido: 330, observacoes: 'Sexta pico' },
-        [`${year}-${month}-08`]: { ganho_bruto: 280, combustivel: 65, outros_gastos: 25, lucro_liquido: 190, observacoes: 'Sábado meio período' },
-        [`${year}-${month}-10`]: { ganho_bruto: 360, combustivel: 65, outros_gastos: 25, lucro_liquido: 270, observacoes: 'Segunda-feira normal' },
-        [`${year}-${month}-11`]: { ganho_bruto: 380, combustivel: 70, outros_gastos: 25, lucro_liquido: 285, observacoes: 'Rota rodoviária' },
-        [`${year}-${month}-12`]: { ganho_bruto: 415, combustivel: 75, outros_gastos: 25, lucro_liquido: 315, observacoes: 'Quarta forte' },
-        [`${year}-${month}-13`]: { ganho_bruto: 380, combustivel: 65, outros_gastos: 25, lucro_liquido: 290, observacoes: 'Quinta tranquila' },
-        [`${year}-${month}-14`]: { ganho_bruto: 425, combustivel: 80, outros_gastos: 25, lucro_liquido: 320, observacoes: 'Excelente faturamento' }
-      };
-      saveLocalData();
+      state.lancamentos = {}; // Vazio se nunca adicionou nada
     }
 
     const savedPerfil = localStorage.getItem('giro_perfil');
@@ -180,7 +233,6 @@ function loadLocalData() {
   }
 }
 
-// Salvar dados no LocalStorage
 function saveLocalData() {
   try {
     localStorage.setItem('giro_lancamentos', JSON.stringify(state.lancamentos));
@@ -199,7 +251,7 @@ async function loadUserDataFromSupabase() {
   try {
     updateCloudStatusBadge(true, 'Sincronizando...');
 
-    // 1. Carregar perfil do usuário
+    // 1. Carregar perfil do usuário logado
     const { data: perfilData, error: perfilError } = await supabaseClient
       .from('perfil')
       .select('*')
@@ -207,22 +259,24 @@ async function loadUserDataFromSupabase() {
       .maybeSingle();
 
     if (!perfilError && perfilData) {
-      state.perfil.nome = perfilData.nome || state.perfil.nome;
-      state.perfil.data_nascimento = perfilData.data_nascimento || state.perfil.data_nascimento;
-      state.perfil.carro = perfilData.carro || state.perfil.carro;
-      state.perfil.meta_mensal = Number(perfilData.meta_mensal) || state.perfil.meta_mensal;
+      if (perfilData.nome) state.perfil.nome = perfilData.nome;
+      if (perfilData.data_nascimento) state.perfil.data_nascimento = perfilData.data_nascimento;
+      if (perfilData.carro) state.perfil.carro = perfilData.carro;
+      if (perfilData.meta_mensal !== undefined && perfilData.meta_mensal !== null) {
+        state.perfil.meta_mensal = Number(perfilData.meta_mensal);
+      }
       if (perfilData.foto_url) state.perfil.foto_url = perfilData.foto_url;
       saveLocalData();
       renderProfile();
     }
 
-    // 2. Carregar lançamentos do usuário
+    // 2. Carregar lançamentos do usuário logado
     const { data: lancamentosData, error: lancError } = await supabaseClient
       .from('lancamentos')
       .select('*')
       .eq('user_id', state.currentUser.id);
 
-    if (!lancError && lancamentosData) {
+    if (!lancError && lancamentosData && Array.isArray(lancamentosData)) {
       lancamentosData.forEach(item => {
         state.lancamentos[item.data] = {
           id: item.id,
@@ -242,36 +296,7 @@ async function loadUserDataFromSupabase() {
     updateFinancialSummary();
     renderHistory();
   } catch (err) {
-    console.warn('Erro ao carregar dados do usuário no Supabase:', err);
-    updateCloudStatusBadge(false, 'Modo Local');
-  }
-}
-
-async function syncPublicLancamentos() {
-  if (!supabaseClient) return;
-  try {
-    const { data, error } = await supabaseClient.from('lancamentos').select('*');
-    if (!error && data) {
-      isSupabaseOnline = true;
-      updateCloudStatusBadge(true, 'Nuvem Conectada');
-      data.forEach(item => {
-        state.lancamentos[item.data] = {
-          id: item.id,
-          ganho_bruto: Number(item.ganho_bruto),
-          combustivel: Number(item.combustivel),
-          outros_gastos: Number(item.outros_gastos),
-          lucro_liquido: Number(item.lucro_liquido),
-          observacoes: item.observacoes || ''
-        };
-      });
-      saveLocalData();
-      renderCalendar();
-      updateFinancialSummary();
-      renderHistory();
-    } else {
-      updateCloudStatusBadge(false, 'Modo Local');
-    }
-  } catch (err) {
+    console.warn('Erro ao carregar dados no Supabase:', err);
     updateCloudStatusBadge(false, 'Modo Local');
   }
 }
@@ -285,12 +310,12 @@ function updateCloudStatusBadge(isOnline, text) {
   } else {
     badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="text-amber-700 font-medium">${text}</span>`;
     badge.className = 'flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-xs cursor-pointer';
-    badge.title = 'Salvo no dispositivo. Execute o script supabase_schema.sql no Supabase para ativar sincronização em nuvem.';
+    badge.title = 'Salvo no seu dispositivo com segurança.';
   }
 }
 
 // ==========================================
-// AUTENTICAÇÃO (LOGIN & CADASTRO)
+// AUTENTICAÇÃO (LOGIN, CADASTRO E AUTO-LOGIN)
 // ==========================================
 function updateAuthUI(isLoggedIn) {
   const btnAuthOpen = document.getElementById('btn-header-auth');
@@ -303,7 +328,7 @@ function updateAuthUI(isLoggedIn) {
     if (logoutRow) logoutRow.classList.remove('hidden');
   } else {
     if (btnAuthOpen) btnAuthOpen.classList.remove('hidden');
-    if (userAvatar) userAvatar.classList.add('hidden');
+    if (userAvatar) userAvatar.classList.remove('hidden');
     if (logoutRow) logoutRow.classList.add('hidden');
   }
 }
@@ -321,6 +346,20 @@ function closeAuthModal() {
   document.body.classList.remove('overflow-hidden');
 }
 
+function openEmailConfirmModal(email) {
+  const modal = document.getElementById('email-confirm-modal');
+  const emailVal = document.getElementById('confirm-modal-email-val');
+  if (emailVal) emailVal.textContent = email;
+  if (modal) modal.classList.remove('hidden');
+  document.body.classList.add('overflow-hidden');
+}
+
+function closeEmailConfirmModal() {
+  const modal = document.getElementById('email-confirm-modal');
+  if (modal) modal.classList.add('hidden');
+  document.body.classList.remove('overflow-hidden');
+}
+
 function setAuthMode(mode) {
   const title = document.getElementById('auth-modal-title');
   const subtitle = document.getElementById('auth-modal-subtitle');
@@ -331,7 +370,7 @@ function setAuthMode(mode) {
 
   if (mode === 'signup') {
     title.textContent = 'Criar sua Conta';
-    subtitle.textContent = 'Cadastre-se com seu e-mail e senha para salvar na nuvem';
+    subtitle.textContent = 'Informe seu e-mail e crie uma senha segura';
     btnSubmit.innerHTML = '<span class="material-symbols-outlined text-[18px]">person_add</span><span>Criar Conta</span>';
     toggleText.textContent = 'Já tem uma conta?';
     toggleBtn.textContent = 'Fazer Login';
@@ -361,12 +400,7 @@ async function handleAuthSubmit() {
   }
 
   if (password.length < 6) {
-    alert('A senha deve ter pelo menos 6 caracteres.');
-    return;
-  }
-
-  if (!supabaseClient) {
-    alert('Supabase não conectado. Verifique sua conexão com a internet.');
+    alert('A senha deve ter no mínimo 6 caracteres.');
     return;
   }
 
@@ -376,33 +410,49 @@ async function handleAuthSubmit() {
   try {
     let success = false;
 
-    // Tentativa com Supabase se disponível
+    // 1. Tentar autenticação via Supabase se o cliente estiver disponível
     if (supabaseClient) {
-      try {
-        if (action === 'signup') {
-          const { data, error } = await supabaseClient.auth.signUp({
-            email,
-            password,
-            options: { data: { nome: nome || 'Motorista' } }
-          });
-          if (!error && data?.user) {
-            state.currentUser = data.user;
-            success = true;
+      if (action === 'signup') {
+        const { data, error } = await supabaseClient.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { nome: nome || 'Motorista' },
+            emailRedirectTo: window.location.origin + window.location.pathname // Garante retorno direto para auto-login
           }
-        } else {
-          const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-          if (!error && data?.user) {
-            state.currentUser = data.user;
-            success = true;
-          }
+        });
+
+        if (error) {
+          throw error;
         }
-      } catch (e) {
-        console.warn('Supabase não respondeu, usando autenticação autônoma/local:', e);
+
+        // Se o Supabase exigir confirmação por e-mail (comportamento padrão seguro)
+        if (data?.user && !data?.session) {
+          closeAuthModal();
+          openEmailConfirmModal(email);
+          return;
+        }
+
+        // Se já retornou com sessão imediata
+        if (data?.session) {
+          state.currentUser = data.user;
+          if (nome) state.perfil.nome = nome;
+          success = true;
+        }
+      } else {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) {
+          throw error;
+        }
+        if (data?.user) {
+          state.currentUser = data.user;
+          success = true;
+        }
       }
     }
 
-    // Fallback Inteligente Local (Garante funcionamento 100% na Vercel e offline)
-    if (!success) {
+    // 2. Fallback local inteligente caso o Supabase não esteja ativo
+    if (!success && !supabaseClient) {
       let usersDb = {};
       try {
         usersDb = JSON.parse(localStorage.getItem('giro_users_db') || '{}');
@@ -413,7 +463,7 @@ async function handleAuthSubmit() {
           id: 'user_' + Date.now(),
           email: email,
           password: password,
-          nome: nome || 'Motorista',
+          nome: nome || email.split('@')[0],
           created_at: new Date().toISOString()
         };
         localStorage.setItem('giro_users_db', JSON.stringify(usersDb));
@@ -425,7 +475,6 @@ async function handleAuthSubmit() {
           state.currentUser = { id: existingUser.id, email: existingUser.email };
           if (existingUser.nome) state.perfil.nome = existingUser.nome;
         } else if (!existingUser) {
-          // Permite entrada direta criando registro
           usersDb[email] = {
             id: 'user_' + Date.now(),
             email: email,
@@ -436,23 +485,24 @@ async function handleAuthSubmit() {
           localStorage.setItem('giro_users_db', JSON.stringify(usersDb));
           state.currentUser = { id: usersDb[email].id, email: email };
         } else {
-          alert('Senha incorreta para este e-mail.');
+          alert('E-mail ou senha incorretos.');
           return;
         }
       }
-      localStorage.setItem('giro_active_session', JSON.stringify(state.currentUser));
-      updateCloudStatusBadge(true, 'Vercel / Local');
     }
 
-    saveLocalData();
-    renderProfile();
-    updateAuthUI(true);
-    closeAuthModal();
-    showToast(action === 'signup' ? 'Conta criada com sucesso!' : 'Login realizado com sucesso!');
-    await loadUserDataFromSupabase();
+    if (state.currentUser) {
+      localStorage.setItem('giro_active_session', JSON.stringify({ id: state.currentUser.id, email: state.currentUser.email }));
+      saveLocalData();
+      renderProfile();
+      updateAuthUI(true);
+      closeAuthModal();
+      showToast(action === 'signup' ? '🎉 Conta criada com sucesso!' : '👋 Bem-vindo(a) de volta!');
+      await loadUserDataFromSupabase();
+    }
   } catch (err) {
     console.error('Erro na autenticação:', err);
-    alert('Erro: ' + (err.message || 'Falha ao autenticar.'));
+    alert(translateAuthError(err.message));
   } finally {
     btnSubmit.disabled = false;
     btnSubmit.classList.remove('opacity-70');
@@ -487,14 +537,14 @@ function openProfileModal() {
   inputNome.value = state.perfil.nome || '';
   inputNasc.value = state.perfil.data_nascimento || '';
   inputCarro.value = state.perfil.carro || '';
-  inputMeta.value = formatPtBr(state.perfil.meta_mensal || 5000);
+  inputMeta.value = state.perfil.meta_mensal > 0 ? formatPtBr(state.perfil.meta_mensal) : '';
   
-  if (photoPreview && state.perfil.foto_url) {
-    photoPreview.src = state.perfil.foto_url;
+  if (photoPreview) {
+    photoPreview.src = state.perfil.foto_url || DEFAULT_AVATAR_SVG;
   }
 
   if (userEmailLabel) {
-    userEmailLabel.textContent = state.currentUser ? state.currentUser.email : 'Modo Convidado / Offline';
+    userEmailLabel.textContent = state.currentUser ? state.currentUser.email : 'Modo Convidado / Não Conectado';
   }
 
   modal.classList.remove('hidden');
@@ -507,7 +557,6 @@ function closeProfileModal() {
   document.body.classList.remove('overflow-hidden');
 }
 
-// Upload e Preview de Foto de Perfil
 function handleProfilePhotoUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -528,29 +577,22 @@ function handleProfilePhotoUpload(event) {
   reader.readAsDataURL(file);
 }
 
-// Selecionar Avatar Rápido
 function selectPresetAvatar(avatarUrl) {
   state.perfil.foto_url = avatarUrl;
   const photoPreview = document.getElementById('perfil-foto-preview');
   if (photoPreview) photoPreview.src = avatarUrl;
 }
 
-// Salvar Perfil Completo
 async function saveProfile() {
   const nome = document.getElementById('perfil-nome').value.trim();
   const nasc = document.getElementById('perfil-nasc').value;
   const carro = document.getElementById('perfil-carro').value.trim();
   const meta = parsePtBr(document.getElementById('perfil-meta').value);
 
-  if (!nome) {
-    alert('Por favor, informe seu nome.');
-    return;
-  }
-
   state.perfil.nome = nome;
   state.perfil.data_nascimento = nasc;
-  state.perfil.carro = carro || 'Carro do Motorista';
-  state.perfil.meta_mensal = meta > 0 ? meta : 5000;
+  state.perfil.carro = carro;
+  state.perfil.meta_mensal = meta >= 0 ? meta : 0;
 
   saveLocalData();
   renderProfile();
@@ -558,7 +600,6 @@ async function saveProfile() {
   closeProfileModal();
   showToast('Perfil salvo com sucesso!');
 
-  // Sincronizar com Supabase se logado
   if (supabaseClient && state.currentUser) {
     try {
       const payload = {
@@ -578,7 +619,7 @@ async function saveProfile() {
   }
 }
 
-// Renderizar Perfil nos elementos da UI
+// Renderizar Perfil nos elementos visuais da UI
 function renderProfile() {
   const headerGreeting = document.getElementById('header-greeting');
   const greetingSub = document.getElementById('greeting-sub');
@@ -587,11 +628,19 @@ function renderProfile() {
   const headerAvatar = document.getElementById('header-avatar');
   const cardAvatar = document.getElementById('profile-card-avatar');
 
-  if (headerGreeting) headerGreeting.textContent = `Olá, ${state.perfil.nome}`;
-  if (greetingSub) greetingSub.textContent = `Olá, ${state.perfil.nome}!`;
-  if (profileName) profileName.textContent = state.perfil.nome;
+  const temNome = Boolean(state.perfil.nome && state.perfil.nome.trim() !== '');
+
+  if (headerGreeting) {
+    headerGreeting.textContent = temNome ? `Olá, ${state.perfil.nome}` : 'Meu Painel';
+  }
+  if (greetingSub) {
+    greetingSub.textContent = temNome ? `Olá, ${state.perfil.nome}!` : 'Olá! Bem-vindo';
+  }
+  if (profileName) {
+    profileName.textContent = temNome ? state.perfil.nome : 'Configurar Meu Perfil';
+  }
   if (profileSub) {
-    let subInfo = state.perfil.carro || 'Motorista';
+    let subInfo = state.perfil.carro || 'Toque para adicionar seu carro';
     if (state.perfil.data_nascimento) {
       const idade = calcularIdade(state.perfil.data_nascimento);
       if (idade) subInfo += ` • ${idade} anos`;
@@ -599,10 +648,9 @@ function renderProfile() {
     profileSub.textContent = subInfo;
   }
 
-  if (state.perfil.foto_url) {
-    if (headerAvatar) headerAvatar.src = state.perfil.foto_url;
-    if (cardAvatar) cardAvatar.src = state.perfil.foto_url;
-  }
+  const avatarSrc = state.perfil.foto_url || DEFAULT_AVATAR_SVG;
+  if (headerAvatar) headerAvatar.src = avatarSrc;
+  if (cardAvatar) cardAvatar.src = avatarSrc;
 }
 
 function calcularIdade(dataNascIso) {
@@ -704,7 +752,7 @@ function setupEventListeners() {
     photoFileInput.addEventListener('change', handleProfilePhotoUpload);
   }
 
-  // Ações do Modal de Autenticação (Login/Cadastro)
+  // Ações do Modal de Autenticação
   const btnHeaderAuth = document.getElementById('btn-header-auth');
   if (btnHeaderAuth) {
     btnHeaderAuth.addEventListener('click', () => openAuthModal('login'));
@@ -716,6 +764,16 @@ function setupEventListeners() {
     const action = document.getElementById('auth-btn-submit').getAttribute('data-action');
     setAuthMode(action === 'login' ? 'signup' : 'login');
   });
+
+  // Ação de fechar modal de confirmação de e-mail
+  const btnCloseEmailConfirm = document.getElementById('btn-close-email-confirm');
+  if (btnCloseEmailConfirm) {
+    btnCloseEmailConfirm.addEventListener('click', closeEmailConfirmModal);
+  }
+  const emailConfirmBackdrop = document.getElementById('email-confirm-backdrop');
+  if (emailConfirmBackdrop) {
+    emailConfirmBackdrop.addEventListener('click', closeEmailConfirmModal);
+  }
 }
 
 // Alternar abas principais
@@ -822,7 +880,7 @@ function renderCalendar() {
     numSpan.textContent = day;
     btn.appendChild(numSpan);
 
-    if (entry) {
+    if (entry && (entry.ganho_bruto > 0 || entry.combustivel > 0 || entry.outros_gastos > 0)) {
       const netVal = entry.lucro_liquido || (entry.ganho_bruto - (entry.combustivel + entry.outros_gastos));
       const valSpan = document.createElement('span');
       valSpan.className = `font-label-sm text-[9px] font-bold leading-none mt-0.5 ${
@@ -853,7 +911,7 @@ function renderCalendar() {
   }
 
   if (activeDaysBadge) {
-    activeDaysBadge.textContent = `${countActiveDays} dias ativos`;
+    activeDaysBadge.textContent = `${countActiveDays} ${countActiveDays === 1 ? 'dia ativo' : 'dias ativos'}`;
   }
 }
 
@@ -876,7 +934,6 @@ function updateFinancialSummary() {
   const currentMonth = state.currentDate.getMonth();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-  // Filtrar de acordo com a aba selecionada
   if (state.periodFilter === 'dia') {
     const selDate = state.selectedDateStr || formatDateIso(new Date());
     const d = parseDateIso(selDate);
@@ -962,11 +1019,9 @@ function updateFinancialSummary() {
     totalMarginEl.textContent = `Margem: ${margin.toFixed(1).replace('.', ',')}%`;
   }
 
-  // Atualizar Barra de Progresso da Meta Mensal
   updateGoalProgressBar(currentYear, currentMonth);
 }
 
-// Calcular e Exibir Progresso da Meta Mensal
 function updateGoalProgressBar(year, month) {
   const goalBar = document.getElementById('goal-progress-bar');
   const goalPercent = document.getElementById('goal-percent-val');
@@ -975,7 +1030,6 @@ function updateGoalProgressBar(year, month) {
 
   if (!goalBar) return;
 
-  // Total líquido de todo o mês
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   let totalNetMonth = 0;
 
@@ -987,18 +1041,25 @@ function updateGoalProgressBar(year, month) {
     }
   }
 
-  const meta = state.perfil.meta_mensal || 5000;
-  const pct = Math.max(0, (totalNetMonth / meta) * 100);
+  const meta = state.perfil.meta_mensal || 0;
 
-  if (goalPercent) goalPercent.textContent = `${pct.toFixed(0)}%`;
-  if (goalTargetLabel) goalTargetLabel.textContent = `Meta: R$ ${formatPtBr(meta)}`;
-  if (goalCurrentLabel) goalCurrentLabel.textContent = `R$ ${formatPtBr(totalNetMonth)}`;
+  if (meta > 0) {
+    const pct = Math.max(0, (totalNetMonth / meta) * 100);
+    if (goalPercent) goalPercent.textContent = `${pct.toFixed(0)}%`;
+    if (goalTargetLabel) goalTargetLabel.textContent = `Meta: R$ ${formatPtBr(meta)}`;
+    if (goalCurrentLabel) goalCurrentLabel.textContent = `R$ ${formatPtBr(totalNetMonth)}`;
 
-  goalBar.style.width = `${Math.min(pct, 100)}%`;
-  if (pct >= 100) {
-    goalBar.className = 'h-full bg-emerald-400 rounded-full shadow-[0_0_8px_rgba(52,211,153,0.5)] transition-all duration-500';
+    goalBar.style.width = `${Math.min(pct, 100)}%`;
+    if (pct >= 100) {
+      goalBar.className = 'h-full bg-emerald-400 rounded-full shadow-[0_0_8px_rgba(52,211,153,0.5)] transition-all duration-500';
+    } else {
+      goalBar.className = 'h-full bg-primary-fixed rounded-full transition-all duration-500';
+    }
   } else {
-    goalBar.className = 'h-full bg-primary-fixed rounded-full transition-all duration-500';
+    if (goalPercent) goalPercent.textContent = 'Não definida';
+    if (goalTargetLabel) goalTargetLabel.textContent = 'Meta Mensal';
+    if (goalCurrentLabel) goalCurrentLabel.textContent = `R$ ${formatPtBr(totalNetMonth)}`;
+    goalBar.style.width = '0%';
   }
 }
 
@@ -1116,7 +1177,6 @@ async function saveCrudEntry() {
   closeCrudModal();
   showToast('Lançamento salvo com sucesso!');
 
-  // Salvar no Supabase
   if (supabaseClient) {
     try {
       const payload = {
@@ -1129,15 +1189,11 @@ async function saveCrudEntry() {
         user_id: state.currentUser ? state.currentUser.id : null,
         updated_at: new Date().toISOString()
       };
-      const { error } = await supabaseClient.from('lancamentos').upsert(payload, { onConflict: 'data' });
-      if (error) {
-        console.warn('Erro ao salvar no Supabase:', error.message);
-      } else {
-        isSupabaseOnline = true;
-        updateCloudStatusBadge(true, 'Nuvem Conectada');
-      }
+      await supabaseClient.from('lancamentos').upsert(payload, { onConflict: 'data' });
+      isSupabaseOnline = true;
+      updateCloudStatusBadge(true, 'Nuvem Conectada');
     } catch (err) {
-      console.warn('Erro de rede ao salvar no Supabase:', err);
+      console.warn('Erro ao salvar no Supabase:', err);
     }
   }
 }
@@ -1177,7 +1233,7 @@ async function deleteCrudEntry() {
 }
 
 // ==========================================
-// HISTÓRICO E RELATÓRIOS
+// HISTÓRICO E RELATÓRIOS (COM DADOS REAIS)
 // ==========================================
 function renderHistory() {
   const container = document.getElementById('history-list');
@@ -1185,6 +1241,10 @@ function renderHistory() {
   if (!container && !reportContainer) return;
 
   const entries = Object.keys(state.lancamentos)
+    .filter(dateStr => {
+      const e = state.lancamentos[dateStr];
+      return e && (e.ganho_bruto > 0 || e.combustivel > 0 || e.outros_gastos > 0);
+    })
     .sort((a, b) => b.localeCompare(a))
     .map(dateStr => ({ dateStr, ...state.lancamentos[dateStr] }));
 
@@ -1222,9 +1282,19 @@ function renderHistory() {
     `;
   };
 
+  const emptyStateHtml = `
+    <div class="bg-surface-container-lowest p-space-lg rounded-2xl border border-surface-container/50 text-center flex flex-col items-center justify-center py-6 space-y-2">
+      <div class="w-12 h-12 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center">
+        <span class="material-symbols-outlined text-[24px]">calendar_add_on</span>
+      </div>
+      <p class="text-xs font-semibold text-on-surface">Nenhuma jornada registrada neste mês</p>
+      <p class="text-[11px] text-on-surface-variant max-w-[240px]">Toque em um dia no calendário acima para fazer o seu primeiro lançamento!</p>
+    </div>
+  `;
+
   if (container) {
     if (entries.length === 0) {
-      container.innerHTML = '<p class="text-on-surface-variant text-center py-4 text-sm">Nenhum lançamento registrado neste mês.</p>';
+      container.innerHTML = emptyStateHtml;
     } else {
       container.innerHTML = entries.slice(0, 4).map(buildItemHtml).join('');
     }
@@ -1232,35 +1302,47 @@ function renderHistory() {
 
   if (reportContainer) {
     if (entries.length === 0) {
-      reportContainer.innerHTML = '<p class="text-on-surface-variant text-center py-4 text-sm">Nenhum lançamento registrado.</p>';
+      reportContainer.innerHTML = emptyStateHtml;
     } else {
       reportContainer.innerHTML = entries.map(buildItemHtml).join('');
     }
   }
 }
 
+// Renderizar gráfico da semana estritamente com base nos dados REAIS
 function renderReportChart() {
   const chartContainer = document.getElementById('report-bars');
   if (!chartContainer) return;
 
-  const barsData = [
-    { dia: 'Seg', bruto: 340, gas: 70 },
-    { dia: 'Ter', bruto: 380, gas: 75 },
-    { dia: 'Qua', bruto: 415, gas: 80 },
-    { dia: 'Qui', bruto: 390, gas: 70 },
-    { dia: 'Sex', bruto: 450, gas: 90 },
-    { dia: 'Sáb', bruto: 310, gas: 60 },
-    { dia: 'Dom', bruto: 190, gas: 40 }
-  ];
+  const diasSemanaNomes = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const hoje = new Date();
+  const ultimosDias = [];
 
-  chartContainer.innerHTML = barsData.map(item => {
-    const heightBruto = Math.min(Math.round((item.bruto / 500) * 100), 100);
-    const heightGas = Math.min(Math.round((item.gas / 500) * 100), 100);
+  // Obter os últimos 7 dias a partir de hoje
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(hoje);
+    d.setDate(hoje.getDate() - i);
+    const iso = formatDateIso(d);
+    const entry = state.lancamentos[iso] || { ganho_bruto: 0, combustivel: 0 };
+    ultimosDias.push({
+      dia: diasSemanaNomes[d.getDay()],
+      bruto: entry.ganho_bruto || 0,
+      gas: entry.combustivel || 0
+    });
+  }
+
+  // Encontrar o maior valor bruto para normalização da altura das barras
+  const maxBruto = Math.max(...ultimosDias.map(d => d.bruto), 100);
+
+  chartContainer.innerHTML = ultimosDias.map(item => {
+    const heightBruto = item.bruto > 0 ? Math.min(Math.round((item.bruto / maxBruto) * 100), 100) : 4;
+    const heightGas = item.gas > 0 ? Math.min(Math.round((item.gas / maxBruto) * 100), 100) : 4;
+
     return `
       <div class="flex-1 flex flex-col items-center h-full justify-end group">
         <div class="w-full flex items-end justify-center gap-1 h-28">
-          <div class="w-2.5 bg-primary rounded-t-sm transition-all duration-300 group-hover:opacity-80" style="height: ${heightBruto}%;"></div>
-          <div class="w-2.5 bg-secondary-container rounded-t-sm transition-all duration-300 group-hover:opacity-80" style="height: ${heightGas}%;"></div>
+          <div class="w-2.5 bg-primary rounded-t-sm transition-all duration-300 group-hover:opacity-80" style="height: ${heightBruto}%;" title="Bruto: R$ ${formatPtBr(item.bruto)}"></div>
+          <div class="w-2.5 bg-secondary-container rounded-t-sm transition-all duration-300 group-hover:opacity-80" style="height: ${heightGas}%;" title="Gas: R$ ${formatPtBr(item.gas)}"></div>
         </div>
         <span class="font-label-sm text-[11px] text-on-surface-variant mt-2 font-medium">${item.dia}</span>
       </div>
@@ -1280,17 +1362,26 @@ function showToast(message) {
   setTimeout(() => {
     toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-2');
     toast.classList.remove('opacity-100', 'translate-y-0');
-  }, 2800);
+  }, 3200);
 }
 
 function exportDataCsv() {
   const entries = Object.keys(state.lancamentos)
+    .filter(dateStr => {
+      const e = state.lancamentos[dateStr];
+      return e && (e.ganho_bruto > 0 || e.combustivel > 0 || e.outros_gastos > 0);
+    })
     .sort()
     .map(dateStr => {
       const e = state.lancamentos[dateStr];
       const net = e.lucro_liquido || (e.ganho_bruto - (e.combustivel + e.outros_gastos));
       return `${dateStr};${e.ganho_bruto};${e.combustivel};${e.outros_gastos};${net};"${(e.observacoes || '').replace(/"/g, '""')}"`;
     });
+
+  if (entries.length === 0) {
+    alert('Nenhum dado registrado para exportar.');
+    return;
+  }
 
   const csvContent = 'data:text/csv;charset=utf-8,Data;Ganho_Bruto;Combustivel;Outros_Gastos;Lucro_Liquido;Observacoes\n' + entries.join('\n');
   const encodedUri = encodeURI(csvContent);
