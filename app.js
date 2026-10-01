@@ -180,37 +180,49 @@ function initSupabase() {
   }
 }
 
-// Verificar sessão atual (Supabase + Local)
+/// Verificar sessão atual (Supabase + Local)
 async function checkSessionAndSync() {
+  let hasSession = false;
+
   // 1. Tentar recuperar sessão local ativa
   try {
     const localSession = localStorage.getItem('giro_active_session');
     if (localSession) {
       state.currentUser = JSON.parse(localSession);
+      hasSession = true;
       updateAuthUI(true);
       updateCloudStatusBadge(true, 'Online');
     }
   } catch (e) {}
 
-  if (!supabaseClient) {
-    if (!state.currentUser) updateCloudStatusBadge(false, 'Modo Local');
-    return;
+  // 2. Tentar recuperar sessão do Supabase se disponível
+  if (supabaseClient) {
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session && session.user) {
+        state.currentUser = session.user;
+        localStorage.setItem('giro_active_session', JSON.stringify({ id: session.user.id, email: session.user.email }));
+        hasSession = true;
+        updateAuthUI(true);
+        updateCloudStatusBadge(true, 'Nuvem Conectada');
+        await loadUserDataFromSupabase();
+      }
+    } catch (err) {
+      console.warn('Erro ao checar sessão Supabase:', err);
+    }
   }
 
-  try {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session && session.user) {
-      state.currentUser = session.user;
-      localStorage.setItem('giro_active_session', JSON.stringify({ id: session.user.id, email: session.user.email }));
-      updateAuthUI(true);
-      updateCloudStatusBadge(true, 'Nuvem Conectada');
-      await loadUserDataFromSupabase();
-    } else if (!state.currentUser) {
-      updateAuthUI(false);
-    }
-  } catch (err) {
-    console.warn('Erro ao checar sessão Supabase:', err);
-    if (!state.currentUser) updateCloudStatusBadge(false, 'Modo Local');
+  // 3. Regra fundamental solicitada:
+  // Se logado -> entra automaticamente direto no app.
+  // Se NÃO logado -> joga o usuário para a tela de autenticação, iniciando na tela de CADASTRO!
+  if (hasSession && state.currentUser) {
+    closeAuthModal();
+    closeEmailConfirmModal();
+  } else {
+    updateAuthUI(false);
+    updateCloudStatusBadge(false, 'Faça Login');
+    // Abre obrigatoriamente a tela de CADASTRO inicial
+    openAuthModal('signup');
   }
 }
 
@@ -310,7 +322,7 @@ function updateCloudStatusBadge(isOnline, text) {
   } else {
     badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="text-amber-700 font-medium">${text}</span>`;
     badge.className = 'flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-xs cursor-pointer';
-    badge.title = 'Salvo no seu dispositivo com segurança.';
+    badge.title = 'Faça login para salvar seus dados na nuvem.';
   }
 }
 
@@ -328,14 +340,31 @@ function updateAuthUI(isLoggedIn) {
     if (logoutRow) logoutRow.classList.remove('hidden');
   } else {
     if (btnAuthOpen) btnAuthOpen.classList.remove('hidden');
-    if (userAvatar) userAvatar.classList.remove('hidden');
+    if (userAvatar) userAvatar.classList.add('hidden');
     if (logoutRow) logoutRow.classList.add('hidden');
   }
 }
 
-function openAuthModal(mode = 'login') {
+function openAuthModal(mode = 'signup') {
   const modal = document.getElementById('auth-modal');
+  const btnClose = document.getElementById('btn-close-auth');
+  const backdrop = document.getElementById('auth-backdrop');
+
   setAuthMode(mode);
+
+  // Se não estiver logado, a tela de autenticação é obrigatória (sem botão fechar)
+  if (!state.currentUser) {
+    if (btnClose) btnClose.classList.add('hidden');
+    if (backdrop) {
+      backdrop.onclick = null; // Impede fechar clicando fora
+    }
+  } else {
+    if (btnClose) btnClose.classList.remove('hidden');
+    if (backdrop) {
+      backdrop.onclick = closeAuthModal;
+    }
+  }
+
   modal.classList.remove('hidden');
   document.body.classList.add('overflow-hidden');
 }
@@ -364,35 +393,53 @@ function setAuthMode(mode) {
   const title = document.getElementById('auth-modal-title');
   const subtitle = document.getElementById('auth-modal-subtitle');
   const btnSubmit = document.getElementById('auth-btn-submit');
+  const btnLabel = document.getElementById('auth-btn-label');
   const toggleText = document.getElementById('auth-toggle-prompt');
   const toggleBtn = document.getElementById('auth-toggle-btn');
   const nameGroup = document.getElementById('auth-group-name');
+  const smartAlert = document.getElementById('auth-smart-alert');
+
+  if (smartAlert) smartAlert.classList.add('hidden');
 
   if (mode === 'signup') {
     title.textContent = 'Criar sua Conta';
-    subtitle.textContent = 'Informe seu e-mail e crie uma senha segura';
-    btnSubmit.innerHTML = '<span class="material-symbols-outlined text-[18px]">person_add</span><span>Criar Conta</span>';
-    toggleText.textContent = 'Já tem uma conta?';
+    subtitle.textContent = 'Cadastre-se para começar a controlar seus ganhos e jornadas';
+    if (btnLabel) btnLabel.textContent = 'Criar Minha Conta';
+    btnSubmit.querySelector('.material-symbols-outlined').textContent = 'person_add';
+    toggleText.textContent = 'Já possui uma conta cadastrada?';
     toggleBtn.textContent = 'Fazer Login';
     nameGroup.classList.remove('hidden');
     btnSubmit.setAttribute('data-action', 'signup');
   } else {
     title.textContent = 'Entrar no GiroFinance';
     subtitle.textContent = 'Informe seu e-mail e senha para acessar seus dados';
-    btnSubmit.innerHTML = '<span class="material-symbols-outlined text-[18px]">login</span><span>Entrar</span>';
-    toggleText.textContent = 'Não tem uma conta?';
-    toggleBtn.textContent = 'Cadastre-se grátis';
+    if (btnLabel) btnLabel.textContent = 'Entrar na Minha Conta';
+    btnSubmit.querySelector('.material-symbols-outlined').textContent = 'login';
+    toggleText.textContent = 'Ainda não tem uma conta?';
+    toggleBtn.textContent = 'Criar conta grátis';
     nameGroup.classList.add('hidden');
     btnSubmit.setAttribute('data-action', 'login');
+  }
+}
+
+function showSmartAuthAlert(message) {
+  const smartAlert = document.getElementById('auth-smart-alert');
+  const smartText = document.getElementById('auth-smart-alert-text');
+  if (smartAlert && smartText) {
+    smartText.textContent = message;
+    smartAlert.classList.remove('hidden');
   }
 }
 
 async function handleAuthSubmit() {
   const btnSubmit = document.getElementById('auth-btn-submit');
   const action = btnSubmit.getAttribute('data-action');
-  const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
-  const nome = document.getElementById('auth-name').value.trim();
+  const emailInput = document.getElementById('auth-email');
+  const email = emailInput.value.trim();
+  const passwordInput = document.getElementById('auth-password');
+  const password = passwordInput.value;
+  const nomeInput = document.getElementById('auth-name');
+  const nome = nomeInput.value.trim();
 
   if (!email || !password) {
     alert('Por favor, informe seu e-mail e senha.');
@@ -410,7 +457,7 @@ async function handleAuthSubmit() {
   try {
     let success = false;
 
-    // 1. Tentar autenticação via Supabase se o cliente estiver disponível
+    // 1. Tentar autenticação via Supabase
     if (supabaseClient) {
       if (action === 'signup') {
         const { data, error } = await supabaseClient.auth.signUp({
@@ -418,22 +465,30 @@ async function handleAuthSubmit() {
           password,
           options: {
             data: { nome: nome || 'Motorista' },
-            emailRedirectTo: window.location.origin + window.location.pathname // Garante retorno direto para auto-login
+            emailRedirectTo: window.location.origin + window.location.pathname
           }
         });
 
         if (error) {
+          const errLower = error.message.toLowerCase();
+          // Se o usuário já tiver cadastro, alterna automaticamente para a tela de login!
+          if (errLower.includes('already registered') || errLower.includes('user already registered')) {
+            setAuthMode('login');
+            showSmartAuthAlert('Você já possui cadastro com este e-mail! Por favor, digite sua senha para entrar.');
+            passwordInput.value = '';
+            passwordInput.focus();
+            return;
+          }
           throw error;
         }
 
-        // Se o Supabase exigir confirmação por e-mail (comportamento padrão seguro)
+        // Se o Supabase exigir confirmação por e-mail:
         if (data?.user && !data?.session) {
           closeAuthModal();
           openEmailConfirmModal(email);
           return;
         }
 
-        // Se já retornou com sessão imediata
         if (data?.session) {
           state.currentUser = data.user;
           if (nome) state.perfil.nome = nome;
@@ -442,6 +497,11 @@ async function handleAuthSubmit() {
       } else {
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
         if (error) {
+          const errLower = error.message.toLowerCase();
+          if (errLower.includes('invalid login credentials') || errLower.includes('invalid_credentials')) {
+            showSmartAuthAlert('E-mail ou senha incorretos. Confira seus dados e tente novamente.');
+            return;
+          }
           throw error;
         }
         if (data?.user) {
@@ -451,7 +511,7 @@ async function handleAuthSubmit() {
       }
     }
 
-    // 2. Fallback local inteligente caso o Supabase não esteja ativo
+    // 2. Fallback local autônomo (Vercel / Offline sem Supabase)
     if (!success && !supabaseClient) {
       let usersDb = {};
       try {
@@ -459,6 +519,15 @@ async function handleAuthSubmit() {
       } catch (e) { usersDb = {}; }
 
       if (action === 'signup') {
+        if (usersDb[email]) {
+          // Já existe localmente: joga para o login!
+          setAuthMode('login');
+          showSmartAuthAlert('Você já possui cadastro com este e-mail! Digite sua senha para entrar.');
+          passwordInput.value = '';
+          passwordInput.focus();
+          return;
+        }
+
         usersDb[email] = {
           id: 'user_' + Date.now(),
           email: email,
@@ -469,23 +538,20 @@ async function handleAuthSubmit() {
         localStorage.setItem('giro_users_db', JSON.stringify(usersDb));
         state.currentUser = { id: usersDb[email].id, email: email };
         if (nome) state.perfil.nome = nome;
+        success = true;
       } else {
         const existingUser = usersDb[email];
         if (existingUser && existingUser.password === password) {
           state.currentUser = { id: existingUser.id, email: existingUser.email };
           if (existingUser.nome) state.perfil.nome = existingUser.nome;
+          success = true;
         } else if (!existingUser) {
-          usersDb[email] = {
-            id: 'user_' + Date.now(),
-            email: email,
-            password: password,
-            nome: email.split('@')[0],
-            created_at: new Date().toISOString()
-          };
-          localStorage.setItem('giro_users_db', JSON.stringify(usersDb));
-          state.currentUser = { id: usersDb[email].id, email: email };
+          // Se não encontrou usuário, sugere cadastro
+          showSmartAuthAlert('E-mail não cadastrado. Preencha seus dados para criar sua conta!');
+          setAuthMode('signup');
+          return;
         } else {
-          alert('E-mail ou senha incorretos.');
+          showSmartAuthAlert('Senha incorreta para este e-mail.');
           return;
         }
       }
@@ -519,6 +585,9 @@ async function handleAuthLogout() {
     updateAuthUI(false);
     closeProfileModal();
     showToast('Você saiu da sua conta.');
+
+    // Ao sair da conta, joga imediatamente de volta para a tela de autenticação obrigatória
+    openAuthModal('signup');
   }
 }
 

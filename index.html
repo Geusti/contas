@@ -709,66 +709,83 @@
   </div>
 
   <!-- ========================================== -->
-  <!-- MODAL DE AUTENTICAÇÃO (LOGIN & CADASTRO)   -->
+  <!-- TELA / MODAL DE AUTENTICAÇÃO OBRIGATÓRIA   -->
   <!-- ========================================== -->
-  <div id="auth-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-    <div id="auth-backdrop" class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"></div>
+  <div id="auth-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+    <div id="auth-backdrop" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md transition-opacity"></div>
 
-    <div class="relative w-full max-w-md bg-surface rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl z-10 overflow-hidden transform transition-all pb-safe">
+    <div class="relative w-full max-w-sm bg-surface rounded-3xl max-h-[95vh] flex flex-col shadow-2xl z-10 overflow-hidden transform transition-all border border-surface-container-high pb-safe">
       
-      <div class="sticky top-0 bg-surface/95 backdrop-blur-md px-space-lg pt-3 pb-3 border-b border-surface-container-high/60 flex items-center justify-between">
-        <div class="flex flex-col">
-          <span class="text-[11px] text-primary font-bold uppercase tracking-wider">Acesso</span>
-          <span id="auth-modal-title" class="text-sm font-bold text-on-surface">Entrar no GiroFinance</span>
+      <!-- Top Header da Autenticação -->
+      <div class="px-space-lg pt-4 pb-2 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-primary text-on-primary flex items-center justify-center shadow-sm">
+            <span class="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+          </div>
+          <span class="text-xs text-primary font-black uppercase tracking-wider">GiroFinance</span>
         </div>
-        <button id="btn-close-auth" class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors">
-          <span class="material-symbols-outlined text-[20px]">close</span>
+        <!-- Botão fechar (oculto se o usuário não estiver logado) -->
+        <button id="btn-close-auth" class="hidden w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined text-[18px]">close</span>
         </button>
       </div>
 
-      <div class="flex-1 overflow-y-auto p-space-lg space-y-space-md">
-        <div class="text-center py-1">
-          <div class="w-12 h-12 rounded-2xl bg-primary text-on-primary mx-auto flex items-center justify-center shadow-md mb-2">
-            <span class="material-symbols-outlined text-[26px]">lock</span>
+      <div class="flex-1 overflow-y-auto px-space-lg pb-space-lg pt-1 space-y-space-md">
+        
+        <!-- Logo e Chamada -->
+        <div class="text-left pt-1">
+          <h2 id="auth-modal-title" class="text-xl font-extrabold text-on-surface tracking-tight">Criar sua Conta</h2>
+          <p id="auth-modal-subtitle" class="text-xs text-on-surface-variant mt-0.5">Cadastre-se para começar a controlar seus ganhos e jornadas</p>
+        </div>
+
+        <!-- Banner de Feedback Inteligente (ex: aviso quando e-mail já existe) -->
+        <div id="auth-smart-alert" class="hidden bg-primary/10 border border-primary/20 rounded-xl p-2.5 text-xs text-primary font-medium flex items-center gap-2">
+          <span class="material-symbols-outlined text-[18px] shrink-0">info</span>
+          <span id="auth-smart-alert-text">Mensagem informativa</span>
+        </div>
+
+        <!-- Formulário -->
+        <form id="form-auth" onsubmit="event.preventDefault(); handleAuthSubmit();" class="space-y-space-sm">
+          
+          <!-- Campo Nome (padrão visível no cadastro) -->
+          <div id="auth-group-name" class="bg-surface-container-lowest p-space-sm rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+            <label class="text-[11px] font-bold text-on-surface flex items-center gap-1" for="auth-name">
+              <span class="material-symbols-outlined text-[16px] text-primary">person</span>
+              Seu Nome Completo
+            </label>
+            <input id="auth-name" type="text" placeholder="Ex: Carlos Eduardo" class="w-full bg-surface-container-low text-xs text-on-surface rounded-xl p-2.5 focus:outline-none placeholder:text-outline-variant font-semibold"/>
           </div>
-          <p id="auth-modal-subtitle" class="text-xs text-on-surface-variant">Informe seu e-mail e senha para salvar na nuvem</p>
-        </div>
 
-        <!-- Campo Nome (visível no cadastro) -->
-        <div id="auth-group-name" class="hidden bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
-          <label class="text-xs font-bold text-on-surface" for="auth-name">Seu Nome</label>
-          <input id="auth-name" type="text" placeholder="Ex: Carlos Eduardo" class="w-full bg-surface-container-low text-xs text-on-surface rounded-xl p-3 focus:outline-none placeholder:text-outline-variant mt-1 font-semibold"/>
-        </div>
-
-        <!-- Campo E-mail -->
-        <div class="bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
-          <label class="text-xs font-bold text-on-surface" for="auth-email">E-mail</label>
-          <div class="flex items-center bg-surface-container-low rounded-xl px-3 py-2 mt-1">
-            <span class="material-symbols-outlined text-[18px] text-on-surface-variant mr-2">mail</span>
-            <input id="auth-email" type="email" placeholder="seuemail@exemplo.com" class="w-full bg-transparent text-xs font-semibold text-on-surface focus:outline-none placeholder:text-outline-variant"/>
+          <!-- Campo E-mail -->
+          <div class="bg-surface-container-lowest p-space-sm rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+            <label class="text-[11px] font-bold text-on-surface flex items-center gap-1" for="auth-email">
+              <span class="material-symbols-outlined text-[16px] text-primary">mail</span>
+              Seu E-mail
+            </label>
+            <input id="auth-email" type="email" required placeholder="seuemail@exemplo.com" class="w-full bg-surface-container-low text-xs text-on-surface rounded-xl p-2.5 focus:outline-none placeholder:text-outline-variant font-semibold"/>
           </div>
-        </div>
 
-        <!-- Campo Senha -->
-        <div class="bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
-          <label class="text-xs font-bold text-on-surface" for="auth-password">Senha</label>
-          <div class="flex items-center bg-surface-container-low rounded-xl px-3 py-2 mt-1">
-            <span class="material-symbols-outlined text-[18px] text-on-surface-variant mr-2">lock</span>
-            <input id="auth-password" type="password" placeholder="Mínimo 6 caracteres" class="w-full bg-transparent text-xs font-semibold text-on-surface focus:outline-none placeholder:text-outline-variant"/>
+          <!-- Campo Senha -->
+          <div class="bg-surface-container-lowest p-space-sm rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+            <label class="text-[11px] font-bold text-on-surface flex items-center gap-1" for="auth-password">
+              <span class="material-symbols-outlined text-[16px] text-primary">lock</span>
+              Senha de Acesso
+            </label>
+            <input id="auth-password" type="password" required placeholder="Mínimo 6 caracteres" class="w-full bg-surface-container-low text-xs text-on-surface rounded-xl p-2.5 focus:outline-none placeholder:text-outline-variant font-semibold"/>
           </div>
-        </div>
 
-        <!-- Botão de Enviar (Entrar / Criar Conta) -->
-        <button id="auth-btn-submit" data-action="login" type="button" class="w-full h-12 bg-primary hover:bg-primary-container text-on-primary rounded-2xl font-bold text-sm flex items-center justify-center gap-space-sm shadow-md active:scale-[0.99] transition-all">
-          <span class="material-symbols-outlined text-[18px]">login</span>
-          <span>Entrar</span>
-        </button>
+          <!-- Botão Principal de Envio -->
+          <button id="auth-btn-submit" data-action="signup" type="submit" class="w-full h-12 bg-primary hover:bg-primary-container text-on-primary rounded-2xl font-bold text-sm flex items-center justify-center gap-space-sm shadow-md active:scale-[0.99] transition-all mt-2">
+            <span class="material-symbols-outlined text-[18px]">person_add</span>
+            <span id="auth-btn-label">Criar Minha Conta</span>
+          </button>
+        </form>
 
-        <!-- Alternar entre Login e Cadastro -->
-        <div class="flex items-center justify-center gap-1.5 text-xs text-on-surface-variant pt-1">
-          <span id="auth-toggle-prompt">Não tem uma conta?</span>
-          <button id="auth-toggle-btn" type="button" class="text-primary font-bold hover:underline">
-            Cadastre-se grátis
+        <!-- Alternar entre Cadastro e Login -->
+        <div class="flex flex-col items-center justify-center gap-1 text-xs text-on-surface-variant pt-2 border-t border-surface-container-high/60">
+          <span id="auth-toggle-prompt">Já possui uma conta cadastrada?</span>
+          <button id="auth-toggle-btn" type="button" class="text-primary font-bold text-xs hover:underline py-1">
+            Fazer Login
           </button>
         </div>
 
