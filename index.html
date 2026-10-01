@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+  <title>GiroFinance - Painel & Calendário Financeiro</title>
+  
+  <!-- Google Fonts & Material Symbols -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Supabase JS Client v2 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "tertiary-fixed-dim": "#bec6e0",
+            "surface-container-highest": "#d3e4fe",
+            "on-tertiary-fixed-variant": "#3f465c",
+            "tertiary-fixed": "#dae2fd",
+            "on-secondary-fixed": "#341100",
+            "background": "#f8f9ff",
+            "surface-container": "#e5eeff",
+            "on-secondary-container": "#5c2400",
+            "error": "#ba1a1a",
+            "inverse-on-surface": "#eaf1ff",
+            "secondary": "#9d4300",
+            "tertiary-container": "#6c748b",
+            "inverse-surface": "#213145",
+            "on-error": "#ffffff",
+            "inverse-primary": "#68dba9",
+            "on-primary-container": "#f5fff7",
+            "surface-dim": "#cbdbf5",
+            "on-secondary-fixed-variant": "#783200",
+            "on-primary-fixed": "#002114",
+            "on-secondary": "#ffffff",
+            "primary-fixed-dim": "#68dba9",
+            "surface": "#f8f9ff",
+            "outline": "#6d7a72",
+            "surface-tint": "#006c4a",
+            "on-primary-fixed-variant": "#005137",
+            "on-error-container": "#93000a",
+            "on-tertiary-fixed": "#131b2e",
+            "tertiary": "#545c72",
+            "on-primary": "#ffffff",
+            "on-background": "#0b1c30",
+            "primary": "#006948",
+            "primary-container": "#00855d",
+            "primary-fixed": "#85f8c4",
+            "surface-variant": "#d3e4fe",
+            "surface-container-low": "#eff4ff",
+            "secondary-fixed-dim": "#ffb690",
+            "secondary-container": "#fd761a",
+            "surface-bright": "#f8f9ff",
+            "on-tertiary": "#ffffff",
+            "outline-variant": "#bccac0",
+            "surface-container-high": "#dce9ff",
+            "secondary-fixed": "#ffdbca",
+            "surface-container-lowest": "#ffffff",
+            "error-container": "#ffdad6",
+            "on-tertiary-container": "#fefcff",
+            "on-surface-variant": "#3d4a42",
+            "on-surface": "#0b1c30"
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "2xl": "1rem",
+            "3xl": "1.5rem",
+            "full": "9999px"
+          },
+          spacing: {
+            "space-xs": "0.25rem",
+            "space-sm": "0.5rem",
+            "space-md": "0.75rem",
+            "space-lg": "1rem",
+            "space-xl": "1.5rem",
+            "space-2xl": "2rem",
+            "margin": "1rem"
+          },
+          fontFamily: {
+            sans: ["Inter", "sans-serif"]
+          },
+          fontSize: {
+            "body-sm": ["12px", { "lineHeight": "16px" }],
+            "body-md": ["14px", { "lineHeight": "20px" }],
+            "label-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" }],
+            "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+            "label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" }],
+            "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+            "headline-md": ["22px", { "lineHeight": "28px", "fontWeight": "600" }],
+            "metric-tabular": ["16px", { "lineHeight": "20px", "fontWeight": "600" }],
+            "display-currency-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }]
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    @layer base {
+      html, body {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #f8f9ff;
+        overscroll-behavior-y: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+      .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+    }
+    ::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body class="bg-surface font-sans text-on-surface flex flex-col min-h-screen select-none">
+
+  <!-- Top Fixed App Header -->
+  <header class="fixed top-0 w-full z-40 pt-safe bg-surface/90 backdrop-blur-xl border-b border-surface-container-high/60 shadow-[0_1px_8px_rgba(0,0,0,0.03)]">
+    <div class="h-16 px-space-lg max-w-md mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-space-sm">
+        <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-sm">
+          <span class="material-symbols-outlined text-[22px]">account_balance_wallet</span>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-xs text-primary font-extrabold tracking-wide uppercase">GiroFinance</span>
+          <span id="header-greeting" class="text-xs text-on-surface-variant font-medium">Olá, Carlos Eduardo</span>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-space-sm">
+        <!-- Status Supabase Badge -->
+        <div id="cloud-status" class="flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-xs">
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+          <span class="text-amber-700 font-medium">Local</span>
+        </div>
+
+        <!-- Botão Entrar / Cadastro (quando não logado) -->
+        <button id="btn-header-auth" class="flex items-center gap-1 bg-primary text-on-primary px-3 py-1.5 rounded-full text-xs font-bold shadow-sm active:scale-95 transition-all">
+          <span class="material-symbols-outlined text-[16px]">login</span>
+          <span>Entrar</span>
+        </button>
+
+        <!-- Avatar do Usuário (clique para abrir CRUD de perfil) -->
+        <button onclick="openProfileModal()" aria-label="Abrir Perfil" class="relative group">
+          <img id="header-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80" alt="Foto de Perfil" class="w-9 h-9 rounded-full object-cover border-2 border-primary/40 shadow-sm transition-transform active:scale-95"/>
+          <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-surface rounded-full"></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container (Limited to mobile width) -->
+  <main class="flex-1 flex flex-col w-full max-w-md mx-auto bg-surface pt-20 pb-24 px-margin">
+
+    <!-- ========================================== -->
+    <!-- VIEW 1: CALENDÁRIO & PAINEL FINANCEIRO      -->
+    <!-- ========================================== -->
+    <div id="view-calendario" class="flex flex-col w-full gap-space-lg">
+      
+      <!-- Greeting & Month Switcher -->
+      <section class="flex flex-col gap-space-xs">
+        <div class="flex items-center justify-between">
+          <div class="flex flex-col">
+            <span id="greeting-sub" class="text-lg font-bold text-on-surface">Olá, Carlos Eduardo!</span>
+            <span class="text-xs text-on-surface-variant">Confira sua performance e rotas</span>
+          </div>
+          
+          <!-- Month Selector -->
+          <div class="flex items-center bg-surface-container px-2 py-1 rounded-full shadow-sm">
+            <button id="btn-prev-month" aria-label="Mês anterior" class="w-7 h-7 flex items-center justify-center rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors">
+              <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+            </button>
+            <span id="current-month-label" class="text-xs text-on-surface px-2 font-bold whitespace-nowrap">Março 2025</span>
+            <button id="btn-next-month" aria-label="Próximo mês" class="w-7 h-7 flex items-center justify-center rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors">
+              <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Interactive Calendar Card -->
+      <section class="bg-surface-container-lowest rounded-2xl shadow-sm border border-surface-container/50 p-space-md flex flex-col gap-space-sm">
+        <div class="flex items-center justify-between px-space-xs">
+          <div class="flex items-center gap-space-xs text-primary font-bold">
+            <span class="material-symbols-outlined text-[18px]">event</span>
+            <span class="text-xs">Controle de Jornadas</span>
+          </div>
+          <div class="flex items-center gap-1.5 bg-surface-container-low px-2 py-0.5 rounded-full">
+            <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+            <span id="active-days-count" class="text-[11px] text-on-surface-variant font-medium">0 dias ativos</span>
+          </div>
+        </div>
+
+        <!-- Days of Week Header -->
+        <div class="grid grid-cols-7 text-center pt-space-xs border-b border-surface-container-low pb-1">
+          <span class="text-[11px] text-secondary font-bold">D</span>
+          <span class="text-[11px] text-on-surface-variant font-medium">S</span>
+          <span class="text-[11px] text-on-surface-variant font-medium">T</span>
+          <span class="text-[11px] text-on-surface-variant font-medium">Q</span>
+          <span class="text-[11px] text-on-surface-variant font-medium">Q</span>
+          <span class="text-[11px] text-on-surface-variant font-medium">S</span>
+          <span class="text-[11px] text-secondary font-bold">S</span>
+        </div>
+
+        <!-- Dynamic Calendar Grid -->
+        <div class="grid grid-cols-7 gap-y-1 gap-x-1 text-center" id="calendarDays">
+          <!-- Gerado via JavaScript -->
+        </div>
+
+        <!-- Visual Touch Hint -->
+        <div class="flex items-center justify-center gap-1.5 pt-space-xs text-on-surface-variant bg-surface-container-low/60 py-1.5 rounded-xl">
+          <span class="material-symbols-outlined text-[16px] text-primary">touch_app</span>
+          <span class="text-xs">Toque em qualquer dia para lançar ou editar</span>
+        </div>
+      </section>
+
+      <!-- Profile Info & Car Card (Toque para abrir CRUD de perfil) -->
+      <section id="profile-card" class="flex items-center justify-between bg-surface-container-lowest px-space-md py-space-sm rounded-2xl shadow-sm border border-surface-container/50 cursor-pointer active:scale-[0.99] transition-all">
+        <div class="flex items-center gap-space-sm min-w-0">
+          <div class="relative w-11 h-11 rounded-full overflow-hidden shrink-0 border border-primary/20">
+            <img id="profile-card-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80" alt="Avatar" class="w-full h-full object-cover"/>
+          </div>
+          <div class="flex flex-col min-w-0">
+            <div class="flex items-center gap-1.5">
+              <span id="profile-name" class="text-sm font-bold text-on-surface truncate">Carlos Eduardo</span>
+              <span class="material-symbols-outlined text-[14px] text-primary">verified</span>
+            </div>
+            <span id="profile-sub" class="text-xs text-on-surface-variant truncate">Chevrolet Onix Plus 1.0</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-1 bg-surface-container px-2.5 py-1 rounded-full text-on-surface-variant hover:text-primary transition-colors">
+          <span class="material-symbols-outlined text-[16px]">badge</span>
+          <span class="text-xs font-semibold">Perfil</span>
+        </div>
+      </section>
+
+      <!-- Filter Tabs (Pill style: Dia / Semanal / Quinzenal / Mensal) -->
+      <section class="flex items-center justify-between bg-surface-container-low p-1 rounded-full shadow-inner">
+        <button data-filter="dia" class="filter-pill flex-1 py-1.5 text-center text-xs rounded-full text-on-surface-variant hover:text-on-surface transition-all font-semibold">
+          Dia
+        </button>
+        <button data-filter="semanal" class="filter-pill flex-1 py-1.5 text-center text-xs rounded-full text-on-surface-variant hover:text-on-surface transition-all font-semibold">
+          Semanal
+        </button>
+        <button data-filter="quinzenal" class="filter-pill flex-1 py-1.5 text-center text-xs rounded-full text-on-surface-variant hover:text-on-surface transition-all font-semibold">
+          Quinzenal
+        </button>
+        <button data-filter="mensal" class="filter-pill flex-1 py-1.5 text-center text-xs rounded-full bg-inverse-surface text-inverse-on-surface shadow-sm font-bold transition-all">
+          Mensal
+        </button>
+      </section>
+
+      <!-- Financial Overview Card (Painel de Fechamento) -->
+      <section class="bg-surface-container-lowest rounded-2xl shadow-sm border border-surface-container/50 p-space-lg flex flex-col gap-space-md">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-bold text-on-surface">Painel de Fechamento</span>
+          <span id="summary-period-title" class="text-xs bg-surface-container px-2.5 py-0.5 rounded-full text-on-surface-variant font-medium">1 a 31 Março</span>
+        </div>
+
+        <!-- Breakdown Grid -->
+        <div class="flex flex-col gap-space-sm">
+          <!-- Gross Earnings -->
+          <div class="flex items-center justify-between p-space-sm bg-surface-container-low rounded-xl">
+            <div class="flex items-center gap-space-sm">
+              <div class="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center text-primary">
+                <span class="material-symbols-outlined text-[18px]">trending_up</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-xs text-on-surface font-bold">Ganho Bruto</span>
+                <span class="text-[11px] text-on-surface-variant">Entradas registradas</span>
+              </div>
+            </div>
+            <span id="total-gross-val" class="text-sm font-bold text-primary">+ R$ 0,00</span>
+          </div>
+
+          <!-- Fuel Expense -->
+          <div class="flex items-center justify-between p-space-sm bg-surface-container-low rounded-xl">
+            <div class="flex items-center gap-space-sm">
+              <div class="w-8 h-8 rounded-full bg-secondary-fixed flex items-center justify-center text-secondary">
+                <span class="material-symbols-outlined text-[18px]">local_gas_station</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-xs text-on-surface font-bold">Combustível</span>
+                <span class="text-[11px] text-on-surface-variant">Gasolina, etanol & GNV</span>
+              </div>
+            </div>
+            <span id="total-fuel-val" class="text-sm font-bold text-secondary">- R$ 0,00</span>
+          </div>
+
+          <!-- Other Expenses -->
+          <div class="flex items-center justify-between p-space-sm bg-surface-container-low rounded-xl">
+            <div class="flex items-center gap-space-sm">
+              <div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+                <span class="material-symbols-outlined text-[18px]">receipt_long</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-xs text-on-surface font-bold">Outros Gastos</span>
+                <span class="text-[11px] text-on-surface-variant">Alimentação, lava-jato, taxas</span>
+              </div>
+            </div>
+            <span id="total-others-val" class="text-sm font-bold text-on-surface-variant">- R$ 0,00</span>
+          </div>
+        </div>
+
+        <div class="w-full h-px bg-surface-container-high/60"></div>
+
+        <!-- Final Net Total Highlight Box -->
+        <div class="bg-primary/10 border border-primary/20 rounded-2xl p-space-md flex flex-col gap-1.5 shadow-sm">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[20px] text-primary">account_balance_wallet</span>
+              <span class="text-xs font-bold text-primary uppercase tracking-wide">Total Líquido Final</span>
+            </div>
+            <span id="total-net-val" class="text-2xl font-black text-primary tracking-tight">R$ 0,00</span>
+          </div>
+          <div class="flex items-center justify-between pt-1 text-xs">
+            <span class="text-[11px] text-on-surface-variant">Bruto - Combustível - Gastos = Líquido</span>
+            <span id="total-margin-val" class="text-[11px] text-primary font-bold bg-primary-fixed/60 px-2 py-0.5 rounded-full">Margem: 0,0%</span>
+          </div>
+        </div>
+
+        <!-- Meta Mensal Progress Box -->
+        <div class="bg-surface-container-low rounded-xl p-3 flex flex-col gap-1.5">
+          <div class="flex items-center justify-between text-xs">
+            <div class="flex items-center gap-1.5 font-bold text-on-surface">
+              <span class="material-symbols-outlined text-primary text-[18px]">flag</span>
+              <span id="goal-target-label">Meta: R$ 5.000,00</span>
+            </div>
+            <span id="goal-percent-val" class="text-xs font-extrabold text-primary">0%</span>
+          </div>
+          <div class="w-full h-2.5 bg-surface-container-highest/60 rounded-full overflow-hidden">
+            <div id="goal-progress-bar" class="h-full bg-primary-fixed rounded-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+          <div class="flex justify-between text-[10px] text-on-surface-variant pt-0.5">
+            <span>Conquistado no mês: <strong id="goal-current-label" class="text-on-surface">R$ 0,00</strong></span>
+            <button onclick="openProfileModal()" class="text-primary font-semibold hover:underline">Ajustar Meta</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recent Entries / Histórico Rápido -->
+      <section class="flex flex-col gap-space-sm">
+        <div class="flex items-center justify-between px-space-xs">
+          <span class="text-sm font-bold text-on-surface">Últimos Lançamentos</span>
+          <button onclick="switchTab('relatorios')" class="text-xs text-primary font-semibold hover:underline flex items-center gap-0.5">
+            Ver todos
+            <span class="material-symbols-outlined text-[16px]">chevron_right</span>
+          </button>
+        </div>
+
+        <div id="history-list" class="flex flex-col gap-space-xs">
+          <!-- Renderizado via JavaScript -->
+        </div>
+      </section>
+
+      <!-- Prominent Quick Action Button -->
+      <section class="pt-space-xs">
+        <button id="btn-novo-lancamento-main" class="w-full bg-primary hover:bg-primary-container text-on-primary py-3.5 px-space-lg rounded-2xl shadow-md flex items-center justify-center gap-space-sm active:scale-[0.99] transition-all">
+          <span class="material-symbols-outlined text-[22px]">add_circle</span>
+          <span class="text-sm font-bold">Novo Lançamento Diário</span>
+        </button>
+      </section>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW 2: RELATÓRIOS & HISTÓRICO             -->
+    <!-- ========================================== -->
+    <div id="view-relatorios" class="hidden flex flex-col w-full space-y-space-lg">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-xl font-bold text-on-surface">Relatórios & Histórico</h1>
+          <p class="text-xs text-on-surface-variant">Visão clara do seu rendimento e custos de pista</p>
+        </div>
+        <div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-sm">
+          <span class="material-symbols-outlined text-[20px]">insights</span>
+        </div>
+      </div>
+
+      <!-- Weekly Chart Comparison Card -->
+      <div class="bg-surface-container-lowest rounded-2xl p-space-lg shadow-sm border border-surface-container/50 flex flex-col space-y-space-md">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-on-surface">Média dos Dias da Semana</span>
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1">
+              <div class="w-2.5 h-2.5 rounded-full bg-primary"></div>
+              <span class="text-[11px] text-on-surface-variant font-medium">Ganhos</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <div class="w-2.5 h-2.5 rounded-full bg-secondary-container"></div>
+              <span class="text-[11px] text-on-surface-variant font-medium">Combustível</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bar chart container -->
+        <div id="report-bars" class="h-36 w-full flex items-end justify-between gap-2 px-1 pt-2 pb-1">
+          <!-- Renderizado via JS -->
+        </div>
+
+        <div class="flex items-center justify-between p-space-sm bg-surface-container-low rounded-xl">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px] text-primary" style="font-variation-settings: 'FILL' 1;">eco</span>
+            <span class="text-xs text-on-surface-variant">Monitore seus custos para proteger seu lucro diário.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Complete History List -->
+      <div class="flex flex-col space-y-space-sm">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold text-on-surface">Todos os Lançamentos</h2>
+          <button onclick="exportDataCsv()" class="text-xs text-primary font-semibold flex items-center gap-1 hover:underline">
+            <span class="material-symbols-outlined text-[16px]">file_download</span>
+            Exportar CSV
+          </button>
+        </div>
+        <div id="reports-history-list" class="flex flex-col space-y-space-xs">
+          <!-- Renderizado via JS -->
+        </div>
+      </div>
+
+      <!-- Export Button -->
+      <button onclick="exportDataCsv()" class="w-full h-12 bg-primary text-on-primary rounded-2xl font-bold text-sm flex items-center justify-center space-x-2 shadow-sm active:scale-[0.98] transition-transform">
+        <span class="material-symbols-outlined text-[20px]">ios_share</span>
+        <span>Exportar Relatório em Planilha</span>
+      </button>
+    </div>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- MODAL / DRAWER DE CRUD DIÁRIO              -->
+  <!-- ========================================== -->
+  <div id="crud-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div id="crud-backdrop" class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"></div>
+
+    <div class="relative w-full max-w-md bg-surface rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl z-10 overflow-hidden transform transition-all pb-safe">
+      
+      <div class="sticky top-0 bg-surface/95 backdrop-blur-md px-space-lg pt-3 pb-3 border-b border-surface-container-high/60 flex items-center justify-between">
+        <div class="flex flex-col">
+          <span class="text-[11px] text-primary font-bold uppercase tracking-wider">Lançamento Diário</span>
+          <span id="crud-modal-date" class="text-sm font-bold text-on-surface">Data Selecionada</span>
+        </div>
+        <button id="btn-close-crud" class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-space-lg space-y-space-md">
+        <input type="hidden" id="crud-input-date"/>
+
+        <!-- Input 1: Ganho Bruto -->
+        <div class="bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-on-surface flex items-center gap-1.5" for="crud-ganho-bruto">
+              <span class="w-2.5 h-2.5 rounded-full bg-primary inline-block"></span>
+              Ganho Bruto (Entradas)
+            </label>
+            <span class="text-[10px] text-primary bg-primary-fixed/60 px-2 py-0.5 rounded-full font-bold">RECEITA</span>
+          </div>
+          <p class="text-[11px] text-on-surface-variant">Total bruto recebido nas viagens / corridas</p>
+          <div class="flex items-center bg-surface-container-low rounded-xl px-3 py-2 mt-1">
+            <span class="text-sm text-on-surface-variant font-bold mr-2">R$</span>
+            <input id="crud-ganho-bruto" inputmode="decimal" type="text" placeholder="0,00" value="0,00" class="w-full bg-transparent text-xl font-bold text-on-surface focus:outline-none placeholder:text-outline-variant"/>
+          </div>
+        </div>
+
+        <!-- Input 2: Combustível -->
+        <div class="bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-on-surface flex items-center gap-1.5" for="crud-combustivel">
+              <span class="material-symbols-outlined text-secondary text-[18px]">local_gas_station</span>
+              Combustível (Saída)
+            </label>
+            <span class="text-[10px] text-secondary bg-secondary-fixed px-2 py-0.5 rounded-full font-bold">ABASTECIMENTO</span>
+          </div>
+          <p class="text-[11px] text-on-surface-variant">Abastecimento de gasolina, etanol ou GNV</p>
+          <div class="flex items-center bg-surface-container-low rounded-xl px-3 py-2 mt-1">
+            <span class="text-sm text-on-surface-variant font-bold mr-2">R$</span>
+            <input id="crud-combustivel" inputmode="decimal" type="text" placeholder="0,00" value="0,00" class="w-full bg-transparent text-xl font-bold text-secondary focus:outline-none placeholder:text-outline-variant"/>
+          </div>
+        </div>
+
+        <!-- Input 3: Outros Gastos -->
+        <div class="bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-on-surface flex items-center gap-1.5" for="crud-outros-gastos">
+              <span class="material-symbols-outlined text-error text-[18px]">receipt_long</span>
+              Outros Gastos (Saídas)
+            </label>
+            <span class="text-[10px] text-error bg-error-container px-2 py-0.5 rounded-full font-bold">DESPESA</span>
+          </div>
+          <p class="text-[11px] text-on-surface-variant">Alimentação, pedágio, manutenção, lava-jato</p>
+          <div class="flex items-center bg-surface-container-low rounded-xl px-3 py-2 mt-1">
+            <span class="text-sm text-on-surface-variant font-bold mr-2">R$</span>
+            <input id="crud-outros-gastos" inputmode="decimal" type="text" placeholder="0,00" value="0,00" class="w-full bg-transparent text-xl font-bold text-error focus:outline-none placeholder:text-outline-variant"/>
+          </div>
+        </div>
+
+        <!-- Input 4: Observações / KM -->
+        <div class="bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-on-surface flex items-center gap-1.5" for="crud-observacoes">
+              <span class="material-symbols-outlined text-tertiary text-[18px]">speed</span>
+              Observações / KM Rodado
+            </label>
+            <span class="text-[10px] text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">OPCIONAL</span>
+          </div>
+          <input id="crud-observacoes" type="text" placeholder="Ex: 180 km rodados, chuva forte..." class="w-full bg-surface-container-low text-xs text-on-surface rounded-xl p-3 focus:outline-none placeholder:text-outline-variant mt-1"/>
+        </div>
+
+        <!-- Dynamic Calculation Panel -->
+        <div class="rounded-2xl bg-inverse-surface text-inverse-on-surface p-space-md shadow-md space-y-space-sm">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5 text-primary-fixed-dim">
+              <span class="material-symbols-outlined text-[18px]">calculate</span>
+              <span class="text-xs font-bold uppercase tracking-wider">Cálculo Automático</span>
+            </div>
+            <span class="text-[10px] bg-surface-container-highest/20 text-inverse-on-surface px-2 py-0.5 rounded-full">Tempo Real</span>
+          </div>
+
+          <div class="bg-surface-container-highest/10 rounded-xl p-2.5 text-xs space-y-1">
+            <div class="flex items-center justify-between text-tertiary-fixed-dim">
+              <span>Fórmula:</span>
+              <span class="text-inverse-on-surface font-semibold">Bruto - Combustível - Gastos</span>
+            </div>
+            <div class="flex items-center justify-between text-tertiary-fixed-dim pt-0.5">
+              <span>Detalhamento:</span>
+              <span id="crud-calc-breakdown" class="text-inverse-on-surface font-mono font-medium">R$ 0,00 - R$ 0,00 - R$ 0,00</span>
+            </div>
+          </div>
+
+          <!-- Highlight Net Profit Box -->
+          <div class="bg-primary/20 rounded-xl p-3 flex items-center justify-between">
+            <div class="flex flex-col">
+              <span class="text-[10px] text-primary-fixed uppercase tracking-wider font-bold">Lucro Líquido do Dia</span>
+              <div class="flex items-baseline gap-1 mt-0.5">
+                <span class="text-sm text-primary-fixed font-bold">R$</span>
+                <span id="crud-net-profit-val" class="text-2xl font-black text-on-primary-container tracking-tight">0,00</span>
+              </div>
+            </div>
+            <div class="flex flex-col items-end">
+              <span id="crud-margin-badge" class="inline-flex items-center gap-1 bg-primary text-on-primary text-xs px-2.5 py-1 rounded-full font-bold shadow-sm">
+                <span class="material-symbols-outlined text-[13px]">trending_up</span>
+                <span id="crud-margin-val">0,0%</span>
+              </span>
+              <span class="text-[10px] text-tertiary-fixed-dim mt-1 font-medium">Margem Líquida</span>
+            </div>
+          </div>
+
+          <!-- Efficiency Bar -->
+          <div class="space-y-1 pt-1">
+            <div class="flex justify-between text-[11px] text-tertiary-fixed-dim">
+              <span>Eficiência Operacional</span>
+              <span id="crud-efficiency-label" class="text-primary-fixed font-semibold">Neutro</span>
+            </div>
+            <div class="w-full h-1.5 bg-surface-container-highest/20 rounded-full overflow-hidden">
+              <div id="crud-efficiency-bar" class="h-full bg-primary-fixed rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <button id="btn-save-crud" type="button" class="w-full h-12 bg-primary hover:bg-primary-container text-on-primary rounded-2xl font-bold text-sm flex items-center justify-center gap-space-sm shadow-md active:scale-[0.99] transition-all">
+          <span class="material-symbols-outlined text-[20px]">check_circle</span>
+          <span>Salvar Lançamento</span>
+        </button>
+
+        <div class="grid grid-cols-2 gap-space-sm pt-1">
+          <button id="btn-clear-crud" type="button" class="h-10 bg-surface-container-lowest text-on-surface rounded-xl text-xs font-semibold flex items-center justify-center gap-1 border border-surface-container shadow-sm active:bg-surface-container transition-colors">
+            <span class="material-symbols-outlined text-[16px] text-on-surface-variant">backspace</span>
+            <span>Limpar</span>
+          </button>
+          <button id="btn-delete-crud" type="button" class="h-10 bg-error-container text-on-error-container rounded-xl text-xs font-semibold flex items-center justify-center gap-1 shadow-sm active:opacity-90 transition-opacity">
+            <span class="material-symbols-outlined text-[16px]">delete</span>
+            <span>Excluir</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL DE CRUD DO PERFIL COMPLETO           -->
+  <!-- ========================================== -->
+  <div id="profile-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div id="profile-backdrop" class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"></div>
+
+    <div class="relative w-full max-w-md bg-surface rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl z-10 overflow-hidden transform transition-all pb-safe">
+      
+      <div class="sticky top-0 bg-surface/95 backdrop-blur-md px-space-lg pt-3 pb-3 border-b border-surface-container-high/60 flex items-center justify-between">
+        <div class="flex flex-col">
+          <span class="text-[11px] text-primary font-bold uppercase tracking-wider">Configuração</span>
+          <span class="text-sm font-bold text-on-surface">Perfil do Motorista</span>
+        </div>
+        <button id="btn-close-profile" class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-space-lg space-y-space-md">
+        
+        <!-- Foto de Perfil & Upload -->
+        <div class="flex flex-col items-center justify-center gap-2 py-2">
+          <div class="relative group">
+            <img id="perfil-foto-preview" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80" alt="Foto de perfil" class="w-24 h-24 rounded-full object-cover border-4 border-primary/20 shadow-md"/>
+            <label for="perfil-foto-input" class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-lg cursor-pointer hover:bg-primary-container active:scale-95 transition-all">
+              <span class="material-symbols-outlined text-[18px]">photo_camera</span>
+            </label>
+            <input type="file" id="perfil-foto-input" accept="image/*" class="hidden"/>
+          </div>
+          <span class="text-[11px] text-on-surface-variant font-medium">Toque na câmera para carregar uma foto do celular</span>
+
+          <!-- Sugestão de Avatares Rápidos -->
+          <div class="flex items-center gap-2 mt-1">
+            <span class="text-[10px] text-on-surface-variant uppercase font-bold">Ou escolha:</span>
+            <button type="button" onclick="selectPresetAvatar('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80')" class="w-7 h-7 rounded-full overflow-hidden border border-surface-container-high hover:scale-110 transition-transform">
+              <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80" class="w-full h-full object-cover"/>
+            </button>
+            <button type="button" onclick="selectPresetAvatar('https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80')" class="w-7 h-7 rounded-full overflow-hidden border border-surface-container-high hover:scale-110 transition-transform">
+              <img src="https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80" class="w-full h-full object-cover"/>
+            </button>
+            <button type="button" onclick="selectPresetAvatar('https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80')" class="w-7 h-7 rounded-full overflow-hidden border border-surface-container-high hover:scale-110 transition-transform">
+              <img src="https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80" class="w-full h-full object-cover"/>
+            </button>
+          </div>
+        </div>
+
+        <!-- Conta / Email Conectado -->
+        <div class="bg-surface-container-low rounded-xl px-3 py-2 flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px] text-primary">mail</span>
+            <span id="profile-modal-user-email" class="text-on-surface font-semibold truncate max-w-[200px]">Modo Convidado / Offline</span>
+          </div>
+          <span class="text-[10px] bg-surface-container text-on-surface-variant px-2 py-0.5 rounded-full font-bold">STATUS</span>
+        </div>
+
+        <!-- Input 1: Nome Completo -->
+        <div class="bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+          <label class="text-xs font-bold text-on-surface flex items-center gap-1.5" for="perfil-nome">
+            <span class="material-symbols-outlined text-[18px] text-primary">person</span>
+            Nome Completo
+          </label>
+          <input id="perfil-nome" type="text" placeholder="Ex: Carlos Eduardo Santos" class="w-full bg-surface-container-low text-xs text-on-surface rounded-xl p-3 focus:outline-none placeholder:text-outline-variant mt-1 font-semibold"/>
+        </div>
+
+        <!-- Input 2: Data de Nascimento -->
+        <div class="bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+          <label class="text-xs font-bold text-on-surface flex items-center gap-1.5" for="perfil-nasc">
+            <span class="material-symbols-outlined text-[18px] text-primary">cake</span>
+            Data de Nascimento
+          </label>
+          <input id="perfil-nasc" type="date" class="w-full bg-surface-container-low text-xs text-on-surface rounded-xl p-3 focus:outline-none mt-1 font-semibold"/>
+        </div>
+
+        <!-- Input 3: Carro / Veículo -->
+        <div class="bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+          <label class="text-xs font-bold text-on-surface flex items-center gap-1.5" for="perfil-carro">
+            <span class="material-symbols-outlined text-[18px] text-secondary">directions_car</span>
+            Modelo do Carro
+          </label>
+          <p class="text-[11px] text-on-surface-variant">Veículo que você utiliza no dia a dia</p>
+          <input id="perfil-carro" type="text" placeholder="Ex: Chevrolet Onix Plus 1.0, HB20..." class="w-full bg-surface-container-low text-xs text-on-surface rounded-xl p-3 focus:outline-none placeholder:text-outline-variant mt-1 font-semibold"/>
+        </div>
+
+        <!-- Input 4: Meta Mensal -->
+        <div class="bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-on-surface flex items-center gap-1.5" for="perfil-meta">
+              <span class="material-symbols-outlined text-[18px] text-primary">flag</span>
+              Meta Mensal de Lucro Líquido
+            </label>
+            <span class="text-[10px] text-primary bg-primary-fixed/60 px-2 py-0.5 rounded-full font-bold">OBJETIVO</span>
+          </div>
+          <p class="text-[11px] text-on-surface-variant">Quanto você quer colocar limpo no bolso todo mês</p>
+          <div class="flex items-center bg-surface-container-low rounded-xl px-3 py-2 mt-1">
+            <span class="text-sm text-on-surface-variant font-bold mr-2">R$</span>
+            <input id="perfil-meta" inputmode="decimal" type="text" placeholder="5.000,00" value="5.000,00" class="w-full bg-transparent text-lg font-bold text-primary focus:outline-none placeholder:text-outline-variant"/>
+          </div>
+        </div>
+
+        <!-- Botão Salvar Perfil -->
+        <button id="btn-save-profile" type="button" class="w-full h-12 bg-primary hover:bg-primary-container text-on-primary rounded-2xl font-bold text-sm flex items-center justify-center gap-space-sm shadow-md active:scale-[0.99] transition-all">
+          <span class="material-symbols-outlined text-[20px]">save</span>
+          <span>Salvar Alterações do Perfil</span>
+        </button>
+
+        <!-- Botão Sair da Conta (Logout) -->
+        <div id="profile-logout-row" class="pt-1">
+          <button id="btn-logout" type="button" class="w-full h-11 bg-error-container text-on-error-container rounded-2xl text-xs font-bold flex items-center justify-center gap-1 shadow-sm active:opacity-90 transition-opacity">
+            <span class="material-symbols-outlined text-[18px]">logout</span>
+            <span>Sair da Minha Conta</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL DE AUTENTICAÇÃO (LOGIN & CADASTRO)   -->
+  <!-- ========================================== -->
+  <div id="auth-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div id="auth-backdrop" class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"></div>
+
+    <div class="relative w-full max-w-md bg-surface rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl z-10 overflow-hidden transform transition-all pb-safe">
+      
+      <div class="sticky top-0 bg-surface/95 backdrop-blur-md px-space-lg pt-3 pb-3 border-b border-surface-container-high/60 flex items-center justify-between">
+        <div class="flex flex-col">
+          <span class="text-[11px] text-primary font-bold uppercase tracking-wider">Acesso</span>
+          <span id="auth-modal-title" class="text-sm font-bold text-on-surface">Entrar no GiroFinance</span>
+        </div>
+        <button id="btn-close-auth" class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-space-lg space-y-space-md">
+        <div class="text-center py-1">
+          <div class="w-12 h-12 rounded-2xl bg-primary text-on-primary mx-auto flex items-center justify-center shadow-md mb-2">
+            <span class="material-symbols-outlined text-[26px]">lock</span>
+          </div>
+          <p id="auth-modal-subtitle" class="text-xs text-on-surface-variant">Informe seu e-mail e senha para salvar na nuvem</p>
+        </div>
+
+        <!-- Campo Nome (visível no cadastro) -->
+        <div id="auth-group-name" class="hidden bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+          <label class="text-xs font-bold text-on-surface" for="auth-name">Seu Nome</label>
+          <input id="auth-name" type="text" placeholder="Ex: Carlos Eduardo" class="w-full bg-surface-container-low text-xs text-on-surface rounded-xl p-3 focus:outline-none placeholder:text-outline-variant mt-1 font-semibold"/>
+        </div>
+
+        <!-- Campo E-mail -->
+        <div class="bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+          <label class="text-xs font-bold text-on-surface" for="auth-email">E-mail</label>
+          <div class="flex items-center bg-surface-container-low rounded-xl px-3 py-2 mt-1">
+            <span class="material-symbols-outlined text-[18px] text-on-surface-variant mr-2">mail</span>
+            <input id="auth-email" type="email" placeholder="seuemail@exemplo.com" class="w-full bg-transparent text-xs font-semibold text-on-surface focus:outline-none placeholder:text-outline-variant"/>
+          </div>
+        </div>
+
+        <!-- Campo Senha -->
+        <div class="bg-surface-container-lowest p-space-md rounded-2xl shadow-sm border border-surface-container/60 space-y-1">
+          <label class="text-xs font-bold text-on-surface" for="auth-password">Senha</label>
+          <div class="flex items-center bg-surface-container-low rounded-xl px-3 py-2 mt-1">
+            <span class="material-symbols-outlined text-[18px] text-on-surface-variant mr-2">lock</span>
+            <input id="auth-password" type="password" placeholder="Mínimo 6 caracteres" class="w-full bg-transparent text-xs font-semibold text-on-surface focus:outline-none placeholder:text-outline-variant"/>
+          </div>
+        </div>
+
+        <!-- Botão de Enviar (Entrar / Criar Conta) -->
+        <button id="auth-btn-submit" data-action="login" type="button" class="w-full h-12 bg-primary hover:bg-primary-container text-on-primary rounded-2xl font-bold text-sm flex items-center justify-center gap-space-sm shadow-md active:scale-[0.99] transition-all">
+          <span class="material-symbols-outlined text-[18px]">login</span>
+          <span>Entrar</span>
+        </button>
+
+        <!-- Alternar entre Login e Cadastro -->
+        <div class="flex items-center justify-center gap-1.5 text-xs text-on-surface-variant pt-1">
+          <span id="auth-toggle-prompt">Não tem uma conta?</span>
+          <button id="auth-toggle-btn" type="button" class="text-primary font-bold hover:underline">
+            Cadastre-se grátis
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation Bar (Fixed Mobile Tab Bar) -->
+  <nav class="fixed bottom-0 w-full z-40 pb-safe bg-surface/90 backdrop-blur-xl border-t border-surface-container-high/60 shadow-[0_-2px_12px_rgba(0,0,0,0.04)]">
+    <div class="flex justify-around items-center h-16 px-space-sm max-w-md mx-auto">
+      <a data-tab="calendario" href="#" class="nav-tab flex flex-col items-center justify-center min-w-[64px] min-h-[48px] py-1 text-primary font-bold transition-colors">
+        <span class="material-symbols-outlined text-[24px]">calendar_today</span>
+        <span class="text-[11px] mt-0.5">Calendário</span>
+      </a>
+      
+      <a data-tab="novo" href="#" class="nav-tab flex flex-col items-center justify-center min-w-[64px] min-h-[48px] py-1 transition-colors">
+        <div class="w-11 h-11 -mt-4 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-[0_4px_12px_rgba(0,105,72,0.35)] active:scale-95 transition-transform">
+          <span class="material-symbols-outlined text-[26px]">add</span>
+        </div>
+        <span class="text-[11px] mt-0.5 text-on-surface-variant font-medium">Novo</span>
+      </a>
+      
+      <a data-tab="relatorios" href="#" class="nav-tab flex flex-col items-center justify-center min-w-[64px] min-h-[48px] py-1 text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined text-[24px]">bar_chart</span>
+        <span class="text-[11px] mt-0.5 font-medium">Relatórios</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Interactive Feedback Toast -->
+  <div id="app-toast" class="fixed bottom-20 left-4 right-4 max-w-md mx-auto z-50 bg-inverse-surface text-inverse-on-surface px-4 py-3 rounded-2xl shadow-xl flex items-center justify-between opacity-0 pointer-events-none transition-all duration-300 transform translate-y-2">
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary-fixed text-[20px]">check_circle</span>
+      <span id="app-toast-msg" class="text-xs font-semibold">Operação realizada com sucesso!</span>
+    </div>
+    <span class="text-[11px] text-primary-fixed font-bold uppercase tracking-wider">OK</span>
+  </div>
+
+  <!-- Script principal da aplicação -->
+  <script src="app.js"></script>
+</body>
+</html>
